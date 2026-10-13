@@ -8,6 +8,8 @@ import '../models/user_profile.dart';
 
 class UserProfileService {
   static const String _profileKey = 'user_profile';
+  static const String _updatedAtKey = 'user_profile_updated_at';
+  static const String _dirtyKey = 'user_profile_dirty';
   
   Future<UserProfile?> getProfile() async {
     final prefs = await SharedPreferences.getInstance();
@@ -28,7 +30,43 @@ class UserProfileService {
     final prefs = await SharedPreferences.getInstance();
     final profileJson = json.encode(profile.toJson());
     await prefs.setString(_profileKey, profileJson);
+    await prefs.setInt(_updatedAtKey, DateTime.now().millisecondsSinceEpoch);
+    await prefs.setBool(_dirtyKey, true);
     debugPrint('Perfil guardado exitosamente');
+  }
+
+  // --- Sincronización (la foto de perfil se queda solo en el teléfono) ---
+
+  Future<int> profileUpdatedAt() async =>
+      (await SharedPreferences.getInstance()).getInt(_updatedAtKey) ?? 0;
+
+  Future<bool> isProfileDirty() async =>
+      (await SharedPreferences.getInstance()).getBool(_dirtyKey) ?? true;
+
+  Future<void> markProfileDirty() async =>
+      (await SharedPreferences.getInstance()).setBool(_dirtyKey, true);
+
+  /// Marca como subido, salvo que se haya vuelto a editar mientras tanto.
+  Future<void> markProfileSynced(int updatedAt) async {
+    final prefs = await SharedPreferences.getInstance();
+    if ((prefs.getInt(_updatedAtKey) ?? 0) == updatedAt) await prefs.setBool(_dirtyKey, false);
+  }
+
+  /// Guarda el perfil bajado de la nube conservando la foto local.
+  Future<void> applyRemoteProfile(UserProfile remote, int updatedAt) async {
+    final local = await getProfile();
+    final merged = UserProfile(
+      firstName: remote.firstName,
+      lastName: remote.lastName,
+      username: remote.username,
+      age: remote.age,
+      country: remote.country,
+      profileImagePath: local?.profileImagePath,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_profileKey, json.encode(merged.toJson()));
+    await prefs.setInt(_updatedAtKey, updatedAt);
+    await prefs.setBool(_dirtyKey, false);
   }
 
   /// Copia la imagen elegida (que el sistema guarda en caché temporal) a la
@@ -61,6 +99,8 @@ class UserProfileService {
   Future<void> clearProfile() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_profileKey);
+    await prefs.remove(_updatedAtKey);
+    await prefs.remove(_dirtyKey);
     debugPrint('Perfil eliminado');
   }
 

@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../providers/providers.dart';
+import 'home_screen.dart';
 import 'login_screen.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
+class _SplashScreenState extends ConsumerState<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -49,16 +54,19 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
-  void _navigateToLogin() {
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => const LoginScreen(),
-          ),
-        );
-      }
-    });
+  /// Con sesión iniciada, o si ya eligió usar la app sin cuenta, va directo
+  /// al inicio; si no, al login.
+  Future<void> _navigateToLogin() async {
+    final prefs = SharedPreferences.getInstance();
+    await Future<void>.delayed(const Duration(seconds: 2));
+    final skipped = (await prefs).getBool(LoginScreen.skippedKey) ?? false;
+    final loggedIn = ref.read(authServiceProvider)?.currentUser != null;
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => loggedIn || skipped ? const HomeScreen() : const LoginScreen(),
+      ),
+    );
   }
 
   @override

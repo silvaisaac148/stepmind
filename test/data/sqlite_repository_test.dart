@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:stepmind/data/app_database.dart';
@@ -46,6 +48,40 @@ void main() {
     expect(data.daysFor('h1'), {'2026-03-02'});
   });
 
+  test('editar un hábito conserva sus marcas', () async {
+    final habit = Habit(
+      id: 'h1',
+      name: 'Leer',
+      time: const TimeOfDay(hour: 8, minute: 0),
+      createdAt: created,
+    );
+    await habits.saveHabit(habit);
+    await habits.setCheckin('h1', '2026-03-02', done: true);
+    await habits.saveHabit(habit.copyWith(name: 'Leer 20 min'));
+
+    final data = await habits.load();
+    expect(data.habits.single.name, 'Leer 20 min');
+    expect(data.daysFor('h1'), {'2026-03-02'});
+  });
+
+  test('desmarcar y volver a marcar deja la marca activa y pendiente de subir', () async {
+    await habits.saveHabit(Habit(
+      id: 'h1',
+      name: 'Leer',
+      time: const TimeOfDay(hour: 8, minute: 0),
+      createdAt: created,
+    ));
+    await habits.setCheckin('h1', '2026-03-02', done: true);
+    await habits.setCheckin('h1', '2026-03-02', done: false);
+    expect((await habits.load()).daysFor('h1'), isEmpty);
+    await habits.setCheckin('h1', '2026-03-02', done: true);
+
+    expect((await habits.load()).daysFor('h1'), {'2026-03-02'});
+    final rows = await database.db.query('checkins');
+    expect(rows.single['deleted'], 0);
+    expect(rows.single['dirty'], 1);
+  });
+
   test('archivar guarda la fecha', () async {
     final habit = Habit(
       id: 'h1',
@@ -68,6 +104,47 @@ void main() {
 
     final all = await events.all();
     expect(all.map((e) => e.title), ['Gym']);
+  });
+
+  test('actualiza una base v1 conservando los datos', () async {
+    final dir = await Directory.systemTemp.createTemp('stepmind_test');
+    addTearDown(() => dir.delete(recursive: true));
+    final path = p.join(dir.path, 'v1.db');
+    final v1 = await databaseFactoryFfi.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: (db, _) async {
+          await db.execute('CREATE TABLE habits (id TEXT PRIMARY KEY, name TEXT NOT NULL, '
+              'reminder_minutes INTEGER NOT NULL, created_at INTEGER NOT NULL, archived_at INTEGER)');
+          await db.execute('CREATE TABLE checkins (habit_id TEXT NOT NULL REFERENCES habits(id) '
+              'ON DELETE CASCADE, day TEXT NOT NULL, created_at INTEGER NOT NULL, '
+              'PRIMARY KEY (habit_id, day))');
+          await db.execute(
+              'CREATE TABLE events (id TEXT PRIMARY KEY, day TEXT NOT NULL, title TEXT NOT NULL)');
+          await db.insert('habits', {
+            'id': 'h1',
+            'name': 'Leer',
+            'reminder_minutes': 60,
+            'created_at': 1000,
+          });
+          await db.insert('checkins', {'habit_id': 'h1', 'day': '2026-03-02', 'created_at': 2000});
+          await db.insert('events', {'id': 'e1', 'day': '2026-03-02', 'title': 'Cita'});
+        },
+      ),
+    );
+    await v1.close();
+
+    final upgraded = await AppDatabase.open(factory: databaseFactoryFfi, path: path);
+    addTearDown(upgraded.close);
+
+    final data = await SqliteHabitRepository(upgraded).load();
+    expect(data.habits.single.name, 'Leer');
+    expect(data.daysFor('h1'), {'2026-03-02'});
+    expect((await SqliteEventRepository(upgraded).all()).single.title, 'Cita');
+    final habitRow = (await upgraded.db.query('habits')).single;
+    expect(habitRow['updated_at'], 1000);
+    expect(habitRow['dirty'], 1);
   });
 
   test('migra los datos de la versión anterior y limpia contadores viejos', () async {

@@ -23,7 +23,8 @@ class SqliteHabitRepository implements HabitRepository {
   @override
   Future<HabitData> load() async {
     final habitRows = await _db.query('habits', orderBy: 'created_at');
-    final checkinRows = await _db.query('checkins', columns: ['habit_id', 'day']);
+    final checkinRows =
+        await _db.query('checkins', columns: ['habit_id', 'day'], where: 'deleted = 0');
     final checkins = <String, Set<String>>{};
     for (final row in checkinRows) {
       checkins.putIfAbsent(row['habit_id'] as String, () => {}).add(row['day'] as String);
@@ -36,19 +37,31 @@ class SqliteHabitRepository implements HabitRepository {
 
   @override
   Future<void> saveHabit(Habit habit) async {
-    await _db.insert('habits', habit.toRow(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await AppDatabase.upsert(
+      _db,
+      'habits',
+      {...habit.toRow(), 'updated_at': DateTime.now().millisecondsSinceEpoch, 'dirty': 1},
+      ['id'],
+    );
   }
 
   @override
   Future<void> setCheckin(String habitId, String day, {required bool done}) async {
-    if (done) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final deleted = done ? 0 : 1;
+    // Desmarcar deja una marca borrada (no se elimina) para sincronizarlo.
+    final changed = await _db.update(
+      'checkins',
+      {'deleted': deleted, 'updated_at': now, 'dirty': 1},
+      where: 'habit_id = ? AND day = ? AND deleted != ?',
+      whereArgs: [habitId, day, deleted],
+    );
+    if (changed == 0 && done) {
       await _db.insert(
         'checkins',
-        {'habit_id': habitId, 'day': day, 'created_at': DateTime.now().millisecondsSinceEpoch},
+        {'habit_id': habitId, 'day': day, 'created_at': now, 'updated_at': now, 'dirty': 1},
         conflictAlgorithm: ConflictAlgorithm.ignore,
       );
-    } else {
-      await _db.delete('checkins', where: 'habit_id = ? AND day = ?', whereArgs: [habitId, day]);
     }
   }
 }

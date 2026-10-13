@@ -3,7 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 /// Base de datos local (fuente de verdad en el dispositivo).
 class AppDatabase {
-  static const _version = 1;
+  static const _version = 2;
 
   final Database db;
 
@@ -19,6 +19,7 @@ class AppDatabase {
         version: _version,
         onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
         onCreate: _create,
+        onUpgrade: _upgrade,
       ),
     );
     return AppDatabase._(db);
@@ -49,6 +50,76 @@ class AppDatabase {
           title TEXT NOT NULL
         )''')
       ..execute('CREATE INDEX idx_events_day ON events(day)');
+    _addSyncColumns(batch);
+    await batch.commit(noResult: true);
+  }
+
+  static Future<void> _upgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      final batch = db.batch();
+      _addSyncColumns(batch);
+      await batch.commit(noResult: true);
+    }
+  }
+
+  /// v2: columnas para sincronizar con la nube.
+  /// - `updated_at`: última modificación (ms); gana el cambio más reciente.
+  /// - `dirty`: 1 si hay cambios locales sin subir. Los datos que ya existían
+  ///   nacen pendientes para subirse al iniciar sesión por primera vez.
+  /// - `deleted`: borrado lógico, para que el borrado también se sincronice.
+  static void _addSyncColumns(Batch batch) {
+    for (final table in syncedTables) {
+      batch
+        ..execute('ALTER TABLE $table ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0')
+        ..execute('ALTER TABLE $table ADD COLUMN dirty INTEGER NOT NULL DEFAULT 1');
+    }
+    batch
+      ..execute('ALTER TABLE checkins ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0')
+      ..execute('ALTER TABLE events ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0')
+      ..execute('UPDATE habits SET updated_at = created_at')
+      ..execute('UPDATE checkins SET updated_at = created_at');
+  }
+
+  /// Tablas que se sincronizan, en orden (los hábitos antes que sus marcas).
+  static const syncedTables = ['habits', 'checkins', 'events'];
+
+  /// Inserta o actualiza sin borrar la fila. `INSERT OR REPLACE` borra y
+  /// vuelve a insertar, lo que dispara `ON DELETE CASCADE` y borraría las
+  /// marcas del hábito.
+  static Future<void> upsert(
+    DatabaseExecutor db,
+    String table,
+    Map<String, Object?> values,
+    List<String> keyColumns,
+  ) {
+    final columns = values.keys.toList();
+    final updates = [
+      for (final c in columns)
+        if (!keyColumns.contains(c)) '$c = excluded.$c',
+    ];
+    return db.execute(
+      'INSERT INTO $table (${columns.join(', ')}) '
+      'VALUES (${List.filled(columns.length, '?').join(', ')}) '
+      'ON CONFLICT(${keyColumns.join(', ')}) DO UPDATE SET ${updates.join(', ')}',
+      values.values.toList(),
+    );
+  }
+
+  /// Marca todo como pendiente de subir (p. ej. al entrar en otra cuenta).
+  Future<void> markAllDirty() async {
+    final batch = db.batch();
+    for (final table in syncedTables) {
+      batch.update(table, {'dirty': 1});
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// Borra todos los datos del teléfono (al cerrar sesión si se pide).
+  Future<void> clearAll() async {
+    final batch = db.batch()
+      ..delete('checkins')
+      ..delete('habits')
+      ..delete('events');
     await batch.commit(noResult: true);
   }
 

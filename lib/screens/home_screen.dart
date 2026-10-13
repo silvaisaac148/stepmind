@@ -10,9 +10,7 @@ import 'settings_screen.dart';
 import 'stats_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
-  final String email;
-
-  const HomeScreen({super.key, required this.email});
+  const HomeScreen({super.key});
 
   @override
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
@@ -34,6 +32,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       onResume: () {
         ref.read(todayProvider.notifier).refresh();
         ref.read(habitsProvider.notifier).syncReminders();
+        ref.read(syncProvider.notifier).schedule();
       },
     );
     ref.read(habitsProvider.notifier).syncReminders();
@@ -63,7 +62,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          _HomeTab(email: widget.email),
+          const _HomeTab(),
           const StatsScreen(),
           const HabitsScreen(),
           const AddictionsScreen(),
@@ -88,20 +87,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 class _HomeTab extends ConsumerWidget {
-  final String email;
-
-  const _HomeTab({required this.email});
+  const _HomeTab();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(profileProvider).value;
     final stats = ref.watch(statsProvider).value;
     final firstName = profile?.firstName ?? '';
-    final greetingName = firstName.isNotEmpty ? firstName : email.split('@').first;
+    final email = ref.watch(authUserProvider).value?.email;
+    final greetingName = firstName.isNotEmpty ? firstName : email?.split('@').first;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Bienvenido, $greetingName'),
+        title: Text(greetingName == null ? 'Bienvenido' : 'Bienvenido, $greetingName'),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),

@@ -46,6 +46,7 @@ dependencies:
   path: ^1.9.1
   uuid: ^4.6.0
   flutter_timezone: ^5.1.1
+  supabase_flutter: ^2.18.3
 
 dev_dependencies:
   flutter_test:

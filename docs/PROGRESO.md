@@ -8,11 +8,48 @@
 | 1. SQLite + Riverpod + estadísticas derivadas | ✅ Hecha | `c37e56c` |
 | 2. Notificaciones correctas + foto persistente | ✅ Hecha | `31e1e0c` |
 | 2b. Alarmas exactas + ayuda de batería | ✅ Hecha (falta probar en el teléfono) | ver git log |
-| 3. Supabase: auth real + sincronización | ⏳ Pendiente (necesita decisiones) | |
+| 3. Supabase: auth real + sincronización | 🟡 Código hecho; falta configurar el panel y probar | ver git log |
 | 4. Diseño, tema, i18n, accesibilidad | ⏳ Pendiente (diseño en curso) | |
 | 5. Publicación en Play Store | ⏳ Pendiente | |
 
 `8430077` = código original antes de cualquier cambio.
+
+## Fase 3: cuentas y nube (2026-10-13)
+
+Decisiones: cuenta **opcional**; login con **Google** y **correo + contraseña**;
+proyecto Supabase `tvyppqlsogyoyaoijhkv`.
+
+- El teléfono (SQLite) sigue siendo la fuente de verdad; sin cuenta funciona igual.
+- Con sesión se sincronizan hábitos, marcas, eventos y perfil (la foto se queda local).
+  Gana el cambio más reciente (`updated_at`); los borrados viajan como `deleted`.
+- Al iniciar sesión lo que ya había en el teléfono se sube a la cuenta.
+- Cerrar sesión: conservar datos en el teléfono o borrarlos (solo si se subió todo).
+- Google usa OAuth en el navegador (no hace falta SHA-1). Vuelta: `io.stepmind.app://login-callback`.
+- Arreglado bug de la fase 1: editar un hábito borraba todas sus marcas
+  (`INSERT OR REPLACE` + `ON DELETE CASCADE`).
+- **Adicciones:** hoy la pantalla es solo informativa, la app no guarda datos de
+  adicciones. Cuando exista un registro de adicciones: local por defecto y subida a la
+  nube solo si el usuario la activa (decisión tomada).
+
+### Configuración local
+
+Las claves van en `config/supabase.json` (ignorado por git; plantilla en
+`config/supabase.example.json`). Compilar/ejecutar siempre con:
+
+```bash
+flutter run --dart-define-from-file=config/supabase.json
+flutter build apk --release --split-per-abi --dart-define-from-file=config/supabase.json
+```
+
+Sin ese parámetro la app compila sin cuentas (solo "Continuar sin cuenta").
+
+### Pasos en el panel (pendientes del usuario)
+
+1. SQL Editor → ejecutar `supabase/migrations/20261013000000_init.sql`.
+2. Authentication → URL Configuration → Redirect URLs → añadir `io.stepmind.app://login-callback`.
+3. Google: en Google Cloud Console crear cliente OAuth tipo **Aplicación web** con URI de
+   redirección `https://tvyppqlsogyoyaoijhkv.supabase.co/auth/v1/callback`; pegar Client ID
+   y Secret en Authentication → Sign In / Providers → Google y activarlo.
 
 ## Prueba en dispositivo real (2026-10-12)
 
@@ -30,15 +67,12 @@ Instalado APK release arm64. Resultado: **funciona**; sin errores en logcat dura
    `adb shell dumpsys alarm | grep -A3 stepmind` que la ventana ya no es de +1 h.
 2. ~~Ayuda de batería~~ → **resuelto**: Ajustes → "¿No te llegan los recordatorios?"
    con pasos para Honor/Huawei, Xiaomi, Samsung y Oppo/Realme/OnePlus.
-3. Fase 3, decisiones pendientes:
-   - ¿Proyecto Supabase nuevo? (URL + anon key)
-   - Métodos de login: email/contraseña, Google, ¿Apple?
-   - ¿Cuenta obligatoria u opcional? (recomendado: opcional, la app funciona sin cuenta)
-   - ¿Los datos de adicciones se suben a la nube o se quedan en el teléfono?
+3. ~~Decisiones de la fase 3~~ → tomadas (ver "Fase 3" arriba).
+4. Antes de publicar (fase 5): cambiar `applicationId` `com.example.stepmind` (Play lo rechaza).
 
 ## Cómo probar en el teléfono
 
 ```bash
-flutter build apk --release --split-per-abi
+flutter build apk --release --split-per-abi --dart-define-from-file=config/supabase.json
 adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 ```

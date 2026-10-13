@@ -16,14 +16,23 @@ class SqliteEventRepository implements EventRepository {
 
   @override
   Future<List<CalendarEvent>> all() async {
-    final rows = await _database.db.query('events', orderBy: 'day, rowid');
+    final rows = await _database.db.query('events', where: 'deleted = 0', orderBy: 'day, rowid');
     return rows.map(CalendarEvent.fromRow).toList();
   }
 
   @override
-  Future<void> add(CalendarEvent event) => _database.db.insert('events', event.toRow());
+  Future<void> add(CalendarEvent event) => _database.db.insert('events', {
+        ...event.toRow(),
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+        'dirty': 1,
+      });
 
+  /// Borrado lógico, para que también se borre en la nube.
   @override
-  Future<void> delete(String id) =>
-      _database.db.delete('events', where: 'id = ?', whereArgs: [id]);
+  Future<void> delete(String id) => _database.db.update(
+        'events',
+        {'deleted': 1, 'updated_at': DateTime.now().millisecondsSinceEpoch, 'dirty': 1},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
 }

@@ -7,6 +7,7 @@ import '../domain/habit_stats.dart';
 import '../providers/providers.dart';
 import '../services/notification_service.dart';
 import 'calendar_screen.dart';
+import 'login_screen.dart';
 import 'profile_setup_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -220,6 +221,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _buildSection(
             'Cuenta',
             [
+              ..._buildAccountTiles(),
               ListTile(
                 leading: const Icon(Icons.privacy_tip, color: Colors.teal),
                 title: const Text(
@@ -268,6 +270,103 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  List<Widget> _buildAccountTiles() {
+    if (ref.watch(authServiceProvider) == null) return const [];
+    final user = ref.watch(authUserProvider).value;
+    if (user == null) {
+      return [
+        ListTile(
+          leading: const Icon(Icons.cloud_outlined, color: Colors.lightBlue),
+          title: const Text(
+            'Iniciar sesión o crear cuenta',
+            style: TextStyle(color: Colors.white),
+          ),
+          subtitle: const Text(
+            'Copia en la nube y usar StepMind en otro teléfono',
+            style: TextStyle(color: Colors.grey),
+          ),
+          trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const LoginScreen(fromSettings: true)),
+          ),
+        ),
+      ];
+    }
+
+    final sync = ref.watch(syncProvider);
+    final last = sync.lastSyncedAt;
+    final status = sync.syncing
+        ? 'Sincronizando…'
+        : sync.error ??
+            (last == null
+                ? 'Pendiente de sincronizar'
+                : 'Sincronizado a las ${TimeOfDay.fromDateTime(last).format(context)}');
+    return [
+      ListTile(
+        leading: const Icon(Icons.cloud_done, color: Colors.lightBlue),
+        title: Text(user.email ?? 'Cuenta', style: const TextStyle(color: Colors.white)),
+        subtitle: Text(
+          status,
+          style: TextStyle(color: sync.error != null ? Colors.orange : Colors.grey),
+        ),
+        trailing: sync.syncing
+            ? const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : IconButton(
+                icon: const Icon(Icons.sync, color: Colors.grey),
+                tooltip: 'Sincronizar ahora',
+                onPressed: () => ref.read(syncProvider.notifier).syncNow(),
+              ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.logout, color: Colors.redAccent),
+        title: const Text('Cerrar sesión', style: TextStyle(color: Colors.white)),
+        onTap: _confirmSignOut,
+      ),
+    ];
+  }
+
+  Future<void> _confirmSignOut() async {
+    final wipe = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF3A3634),
+        title: const Text('Cerrar sesión', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Tus datos quedan guardados en la nube. ¿Quieres conservarlos también en '
+          'este teléfono o borrarlos de él?',
+          style: TextStyle(color: Color(0xFFBDBDBD)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Borrar del teléfono', style: TextStyle(color: Colors.redAccent)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Conservar'),
+          ),
+        ],
+      ),
+    );
+    if (wipe == null) return;
+    try {
+      await ref.read(syncProvider.notifier).signOut(wipeLocalData: wipe);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No se pudo cerrar sesión. $e'), backgroundColor: Colors.red),
+      );
+    }
   }
 
   Widget _buildSection(String title, List<Widget> children) {
