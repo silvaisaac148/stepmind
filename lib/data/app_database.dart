@@ -3,7 +3,7 @@ import 'package:sqflite/sqflite.dart';
 
 /// Base de datos local (fuente de verdad en el dispositivo).
 class AppDatabase {
-  static const _version = 2;
+  static const _version = 3;
 
   final Database db;
 
@@ -51,15 +51,15 @@ class AppDatabase {
         )''')
       ..execute('CREATE INDEX idx_events_day ON events(day)');
     _addSyncColumns(batch);
+    _createRecoveryTables(batch);
     await batch.commit(noResult: true);
   }
 
   static Future<void> _upgrade(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      final batch = db.batch();
-      _addSyncColumns(batch);
-      await batch.commit(noResult: true);
-    }
+    final batch = db.batch();
+    if (oldVersion < 2) _addSyncColumns(batch);
+    if (oldVersion < 3) _createRecoveryTables(batch);
+    await batch.commit(noResult: true);
   }
 
   /// v2: columnas para sincronizar con la nube.
@@ -79,6 +79,43 @@ class AppDatabase {
       ..execute('UPDATE habits SET updated_at = created_at')
       ..execute('UPDATE checkins SET updated_at = created_at');
   }
+
+  /// v3: módulo de adicciones. Se queda en el teléfono salvo que el usuario
+  /// active su sincronización.
+  static void _createRecoveryTables(Batch batch) {
+    batch
+      ..execute('''
+        CREATE TABLE recovery_goals (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          started_at INTEGER NOT NULL,
+          why TEXT NOT NULL DEFAULT '',
+          plans_json TEXT NOT NULL DEFAULT '[]',
+          created_at INTEGER NOT NULL,
+          archived_at INTEGER,
+          updated_at INTEGER NOT NULL DEFAULT 0,
+          dirty INTEGER NOT NULL DEFAULT 1
+        )''')
+      ..execute('''
+        CREATE TABLE recovery_events (
+          id TEXT PRIMARY KEY,
+          goal_id TEXT NOT NULL REFERENCES recovery_goals(id) ON DELETE CASCADE,
+          kind TEXT NOT NULL,
+          at INTEGER NOT NULL,
+          emotion TEXT,
+          situation TEXT,
+          intensity INTEGER,
+          resisted INTEGER NOT NULL DEFAULT 0,
+          note TEXT,
+          deleted INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL DEFAULT 0,
+          dirty INTEGER NOT NULL DEFAULT 1
+        )''')
+      ..execute('CREATE INDEX idx_recovery_events_goal ON recovery_events(goal_id, at)');
+  }
+
+  /// Tablas del módulo de adicciones (sincronización opcional).
+  static const recoveryTables = ['recovery_goals', 'recovery_events'];
 
   /// Tablas que se sincronizan, en orden (los hábitos antes que sus marcas).
   static const syncedTables = ['habits', 'checkins', 'events'];
@@ -108,7 +145,7 @@ class AppDatabase {
   /// Marca todo como pendiente de subir (p. ej. al entrar en otra cuenta).
   Future<void> markAllDirty() async {
     final batch = db.batch();
-    for (final table in syncedTables) {
+    for (final table in [...syncedTables, ...recoveryTables]) {
       batch.update(table, {'dirty': 1});
     }
     await batch.commit(noResult: true);
@@ -117,6 +154,8 @@ class AppDatabase {
   /// Borra todos los datos del teléfono (al cerrar sesión si se pide).
   Future<void> clearAll() async {
     final batch = db.batch()
+      ..delete('recovery_events')
+      ..delete('recovery_goals')
       ..delete('checkins')
       ..delete('habits')
       ..delete('events');

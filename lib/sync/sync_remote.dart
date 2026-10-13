@@ -9,6 +9,9 @@ abstract class SyncRemote {
   /// Filas modificadas en el servidor después de [since] (`synced_at`),
   /// ordenadas por `synced_at`, como máximo [limit].
   Future<List<Map<String, dynamic>>> changedSince(String table, String? since, int limit);
+
+  /// Borra todas las filas del usuario en [table].
+  Future<void> deleteAll(String table, String userId);
 }
 
 class SupabaseSyncRemote implements SyncRemote {
@@ -26,4 +29,8 @@ class SupabaseSyncRemote implements SyncRemote {
     if (since != null) query = query.gt('synced_at', since);
     return query.order('synced_at').limit(limit);
   }
+
+  @override
+  Future<void> deleteAll(String table, String userId) =>
+      _client.from(table).delete().eq('user_id', userId);
 }

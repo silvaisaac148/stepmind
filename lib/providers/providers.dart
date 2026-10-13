@@ -9,7 +9,9 @@ import '../core/dates.dart';
 import '../data/app_database.dart';
 import '../data/event_repository.dart';
 import '../data/habit_repository.dart';
+import '../data/recovery_repository.dart';
 import '../domain/habit_stats.dart';
+import '../domain/recovery.dart';
 import '../models/calendar_event.dart';
 import '../models/habit.dart';
 import '../models/user_profile.dart';
@@ -35,6 +37,10 @@ final habitRepositoryProvider = Provider<HabitRepository>(
 
 final eventRepositoryProvider = Provider<EventRepository>(
   (ref) => SqliteEventRepository(ref.watch(databaseProvider)),
+);
+
+final recoveryRepositoryProvider = Provider<RecoveryRepository>(
+  (ref) => SqliteRecoveryRepository(ref.watch(databaseProvider)),
 );
 
 final userProfileServiceProvider = Provider((ref) => UserProfileService());
@@ -120,10 +126,12 @@ class SyncController extends Notifier<SyncState> {
     _running = true;
     state = SyncState(syncing: true, lastSyncedAt: state.lastSyncedAt);
     try {
+      final prefs = await SharedPreferences.getInstance();
       final engine = SyncEngine(
         ref.read(databaseProvider),
         remote,
         ref.read(userProfileServiceProvider),
+        includeRecovery: prefs.getBool(SyncEngine.recoveryCloudKey) ?? false,
       );
       if (await engine.sync(userId)) await _reloadLocalData();
       state = SyncState(lastSyncedAt: ref.read(clockProvider)());
@@ -145,6 +153,7 @@ class SyncController extends Notifier<SyncState> {
   Future<void> _reloadLocalData() async {
     await ref.read(habitsProvider.notifier).reload();
     await ref.read(eventsProvider.notifier).reload();
+    await ref.read(recoveryProvider.notifier).reload();
     ref.invalidate(profileProvider);
   }
 
@@ -355,3 +364,124 @@ class ProfileController extends AsyncNotifier<UserProfile?> {
 
 final profileProvider =
     AsyncNotifierProvider<ProfileController, UserProfile?>(ProfileController.new);
+
+// ---------------------------------------------------------------------------
+// Adicciones (recuperación)
+// ---------------------------------------------------------------------------
+
+class RecoveryController extends AsyncNotifier<RecoveryData> {
+  RecoveryRepository get _repo => ref.read(recoveryRepositoryProvider);
+
+  @override
+  Future<RecoveryData> build() => ref.watch(recoveryRepositoryProvider).load();
+
+  void _scheduleSync() => ref.read(syncProvider.notifier).schedule();
+
+  Future<void> reload() async => state = AsyncData(await _repo.load());
+
+  Future<RecoveryGoal> createGoal({
+    required String name,
+    required DateTime startedAt,
+    String why = '',
+    List<IfThenPlan> plans = const [],
+  }) async {
+    final goal = RecoveryGoal(
+      id: _uuid.v4(),
+      name: name.trim(),
+      startedAt: startedAt,
+      why: why.trim(),
+      plans: plans,
+      createdAt: ref.read(clockProvider)(),
+    );
+    await saveGoal(goal);
+    return goal;
+  }
+
+  Future<void> saveGoal(RecoveryGoal goal) async {
+    await _repo.saveGoal(goal);
+    final current = await future;
+    final exists = current.goals.any((g) => g.id == goal.id);
+    state = AsyncData(current.copyWith(
+      goals: exists
+          ? [for (final g in current.goals) g.id == goal.id ? goal : g]
+          : [...current.goals, goal],
+    ));
+    _scheduleSync();
+  }
+
+  Future<void> archiveGoal(RecoveryGoal goal) =>
+      saveGoal(goal.copyWith(archivedAt: ref.read(clockProvider)()));
+
+  Future<void> logEvent({
+    required String goalId,
+    required RecoveryEventKind kind,
+    DateTime? at,
+    String? emotion,
+    String? trigger,
+    int? intensity,
+    bool resisted = false,
+    String? note,
+  }) async {
+    final event = RecoveryEvent(
+      id: _uuid.v4(),
+      goalId: goalId,
+      kind: kind,
+      at: at ?? ref.read(clockProvider)(),
+      emotion: emotion,
+      trigger: trigger,
+      intensity: intensity,
+      resisted: resisted,
+      note: note == null || note.trim().isEmpty ? null : note.trim(),
+    );
+    await _repo.addEvent(event);
+    final current = await future;
+    state = AsyncData(current.copyWith(events: [...current.events, event]));
+    _scheduleSync();
+  }
+
+  Future<void> deleteEvent(String id) async {
+    await _repo.deleteEvent(id);
+    final current = await future;
+    state = AsyncData(current.copyWith(events: [
+      for (final e in current.events)
+        if (e.id != id) e,
+    ]));
+    _scheduleSync();
+  }
+}
+
+final recoveryProvider =
+    AsyncNotifierProvider<RecoveryController, RecoveryData>(RecoveryController.new);
+
+/// Si el módulo de adicciones se sincroniza con la nube (por defecto, no).
+class RecoveryCloudController extends AsyncNotifier<bool> {
+  @override
+  Future<bool> build() async =>
+      (await SharedPreferences.getInstance()).getBool(SyncEngine.recoveryCloudKey) ?? false;
+
+  Future<void> enable() async {
+    await (await SharedPreferences.getInstance()).setBool(SyncEngine.recoveryCloudKey, true);
+    await SyncEngine.markRecoveryForUpload(ref.read(databaseProvider));
+    state = const AsyncData(true);
+    await ref.read(syncProvider.notifier).syncNow();
+  }
+
+  /// Deja de sincronizar. Con [deleteFromCloud] borra además la copia en la nube.
+  Future<void> disable({required bool deleteFromCloud}) async {
+    final userId = ref.read(authUserProvider).value?.id;
+    final remote = ref.read(syncRemoteProvider);
+    if (deleteFromCloud && userId != null && remote != null) {
+      await SyncEngine(ref.read(databaseProvider), remote, ref.read(userProfileServiceProvider))
+          .deleteRecoveryFromCloud(userId);
+    }
+    await (await SharedPreferences.getInstance()).setBool(SyncEngine.recoveryCloudKey, false);
+    state = const AsyncData(false);
+  }
+}
+
+final recoveryCloudProvider =
+    AsyncNotifierProvider<RecoveryCloudController, bool>(RecoveryCloudController.new);
+
+/// Estadísticas de una meta, recalculadas con [now].
+RecoveryStats recoveryStatsFor(RecoveryData data, RecoveryGoal goal, DateTime now) =>
+    RecoveryStats.compute(goal, data.eventsFor(goal.id), now);

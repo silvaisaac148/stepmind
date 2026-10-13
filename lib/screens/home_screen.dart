@@ -5,9 +5,9 @@ import '../core/dates.dart';
 import '../domain/habit_stats.dart';
 import '../providers/providers.dart';
 import '../services/notification_service.dart';
-import 'addictions_screen.dart';
 import 'calendar_screen.dart';
 import 'habits_screen.dart';
+import 'recovery/recovery_screen.dart';
 import 'settings_screen.dart';
 import 'stats_screen.dart';
 import '../core/theme.dart';
@@ -69,7 +69,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _HomeTab(onOpenHabits: () => setState(() => _currentIndex = _habitsTab)),
           const StatsScreen(),
           const HabitsScreen(),
-          const AddictionsScreen(),
+          const RecoveryScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(

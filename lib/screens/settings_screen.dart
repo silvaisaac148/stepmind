@@ -324,12 +324,74 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onPressed: () => ref.read(syncProvider.notifier).syncNow(),
               ),
       ),
+      SwitchListTile(
+        secondary: const Icon(Icons.shield_moon_outlined, color: Colors.tealAccent),
+        title: const Text('Sincronizar datos de adicciones', style: TextStyle(color: Colors.white)),
+        subtitle: const Text(
+          'Desactivado: se quedan solo en este teléfono',
+          style: TextStyle(color: AppColors.textMuted),
+        ),
+        value: ref.watch(recoveryCloudProvider).value ?? false,
+        onChanged: _setRecoveryCloud,
+      ),
       ListTile(
         leading: const Icon(Icons.logout, color: Colors.redAccent),
         title: const Text('Cerrar sesión', style: TextStyle(color: Colors.white)),
         onTap: _confirmSignOut,
       ),
     ];
+  }
+
+  Future<void> _setRecoveryCloud(bool enable) async {
+    final controller = ref.read(recoveryCloudProvider.notifier);
+    if (enable) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('¿Subir tus datos de adicciones?'),
+          content: const Text(
+            'Tus metas, tu porqué y tus registros se guardarán en tu cuenta para tener '
+            'copia y usarlos en otro teléfono. Solo tú puedes verlos.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Activar')),
+          ],
+        ),
+      );
+      if (ok == true) await controller.enable();
+      return;
+    }
+    final delete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Dejar de sincronizar'),
+        content: const Text(
+          'Tus datos de adicciones seguirán en este teléfono. ¿Quieres borrar también la '
+          'copia que hay en la nube?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Borrar de la nube'),
+          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Conservar')),
+        ],
+      ),
+    );
+    if (delete == null) return;
+    try {
+      await controller.disable(deleteFromCloud: delete);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo borrar de la nube. Revisa tu conexión.'),
+          backgroundColor: AppColors.coral,
+        ),
+      );
+    }
   }
 
   Future<void> _confirmSignOut() async {

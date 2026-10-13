@@ -9,7 +9,8 @@
 | 2. Notificaciones correctas + foto persistente | ✅ Hecha | `31e1e0c` |
 | 2b. Alarmas exactas + ayuda de batería | ✅ Hecha y probada en el teléfono | `fbeca72` |
 | 3. Supabase: auth real + sincronización | ✅ Hecha y probada en el teléfono | `abfee00` |
-| 4. Diseño, tema, i18n, accesibilidad | ⏳ Pendiente (diseño en curso) | |
+| 4. Diseño (Figma recuperado + mejoras) | ✅ Tema, splash, login, inicio, calendario, paleta | `ee0ce7b` |
+| 4b. Módulo de adicciones (SOS, porqué, planes, patrones, hitos) | 🟡 Hecho; falta probarlo en el teléfono | ver git log |
 | 5. Publicación en Play Store | ⏳ Pendiente | |
 
 `8430077` = código original antes de cualquier cambio.
@@ -50,6 +51,18 @@ Sin ese parámetro la app compila sin cuentas (solo "Continuar sin cuenta").
 3. Google: en Google Cloud Console crear cliente OAuth tipo **Aplicación web** con URI de
    redirección `https://tvyppqlsogyoyaoijhkv.supabase.co/auth/v1/callback`; pegar Client ID
    y Secret en Authentication → Sign In / Providers → Google y activarlo.
+
+## Módulo de adicciones (2026-10-13)
+
+Basado en `docs/ESTUDIO.md`. Pestaña "Adicciones":
+- Metas (pornografía, redes, alcohol…) con fecha de inicio, "mi porqué" y planes si-entonces.
+- Racha actual en vivo + **días limpios totales** (un desliz no los borra) + mejor racha.
+- **SOS**: intensidad/emoción → respiración 4-6 guiada → surfear la ola → porqué y planes →
+  acción alternativa → "pasó" (se registra como urgencia superada) o "recaí" (registro sin culpa).
+- Patrones: emoción, situación y franja horaria más frecuentes. Hitos 1-3-7-14-30-66-90-180-365 con celebración.
+- Privacidad: local por defecto. Ajustes → Cuenta → "Sincronizar datos de adicciones" (opcional).
+  **Requiere ejecutar `supabase/migrations/20261013010000_recovery.sql` antes de activarlo.**
+- Pendiente: PIN/huella para abrir el módulo; notificaciones de promesa matutina / repaso nocturno.
 
 ## Prueba en dispositivo real (2026-10-13)
 

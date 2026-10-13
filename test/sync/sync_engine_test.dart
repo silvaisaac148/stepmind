@@ -8,6 +8,8 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:stepmind/data/app_database.dart';
 import 'package:stepmind/data/event_repository.dart';
 import 'package:stepmind/data/habit_repository.dart';
+import 'package:stepmind/data/recovery_repository.dart';
+import 'package:stepmind/domain/recovery.dart';
 import 'package:stepmind/models/calendar_event.dart';
 import 'package:stepmind/models/habit.dart';
 import 'package:stepmind/models/user_profile.dart';
@@ -42,6 +44,10 @@ class FakeRemote implements SyncRemote {
       ..sort((a, b) => (a['synced_at'] as String).compareTo(b['synced_at'] as String));
     return [for (final r in rows.take(limit)) Map<String, dynamic>.from(r)];
   }
+
+  @override
+  Future<void> deleteAll(String table, String userId) async =>
+      tables[table]?.removeWhere((_, r) => r['user_id'] == userId);
 
   Map<String, Object?>? row(String table, String key) => tables[table]?[key];
 }
@@ -200,5 +206,50 @@ void main() {
     await a.sync('u1');
     await a.sync('u2');
     expect(remote.row('habits', 'u2|h1'), isNotNull);
+  });
+
+  group('módulo de adicciones', () {
+    Future<void> addRecoveryData(Phone phone) async {
+      final repo = SqliteRecoveryRepository(phone.database);
+      await repo.saveGoal(RecoveryGoal(
+        id: 'g1',
+        name: 'Pornografía',
+        startedAt: DateTime(2026, 3, 1),
+        createdAt: DateTime(2026, 3, 1),
+        why: 'Ser libre',
+      ));
+      await repo.addEvent(RecoveryEvent(
+        id: 'e1',
+        goalId: 'g1',
+        kind: RecoveryEventKind.slip,
+        at: DateTime(2026, 3, 5, 23),
+        trigger: 'En la cama',
+      ));
+    }
+
+    test('por defecto se queda en el teléfono', () async {
+      await addRecoveryData(a);
+      await a.sync('u1');
+      expect(remote.tables['recovery_goals'], isNull);
+      expect(remote.tables['recovery_events'], isNull);
+    });
+
+    test('si se activa, se sube y otro teléfono lo recibe', () async {
+      await addRecoveryData(a);
+      final engine = SyncEngine(a.database, remote, UserProfileService(), includeRecovery: true);
+      await a.use(() => engine.sync('u1'));
+      expect(remote.row('recovery_goals', 'u1|g1')!['why'], 'Ser libre');
+      expect(remote.row('recovery_events', 'u1|e1')!['situation'], 'En la cama');
+
+      final engineB = SyncEngine(b.database, remote, UserProfileService(), includeRecovery: true);
+      await b.use(() => engineB.sync('u1'));
+      final data = await SqliteRecoveryRepository(b.database).load();
+      expect(data.goals.single.why, 'Ser libre');
+      expect(data.events.single.trigger, 'En la cama');
+
+      await a.use(() => engine.deleteRecoveryFromCloud('u1'));
+      expect(remote.tables['recovery_goals'], isEmpty);
+      expect(remote.tables['recovery_events'], isEmpty);
+    });
   });
 }

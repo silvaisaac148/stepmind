@@ -27,7 +27,7 @@ class _TableSpec {
 class SyncEngine {
   static const pageSize = 500;
 
-  static const _tables = [
+  static const _baseTables = [
     _TableSpec('habits', ['id'],
         ['id', 'name', 'reminder_minutes', 'created_at', 'archived_at', 'updated_at']),
     _TableSpec('checkins', ['habit_id', 'day'],
@@ -37,13 +37,59 @@ class SyncEngine {
         booleans: ['deleted']),
   ];
 
+  /// Módulo de adicciones: solo si el usuario activa su sincronización.
+  static const _recoveryTables = [
+    _TableSpec('recovery_goals', ['id'],
+        ['id', 'name', 'started_at', 'why', 'plans_json', 'created_at', 'archived_at', 'updated_at']),
+    _TableSpec('recovery_events', ['id'], [
+      'id',
+      'goal_id',
+      'kind',
+      'at',
+      'emotion',
+      'situation',
+      'intensity',
+      'resisted',
+      'note',
+      'deleted',
+      'updated_at',
+    ], booleans: ['resisted', 'deleted']),
+  ];
+
+  /// Clave de preferencias: sincronizar también el módulo de adicciones.
+  static const recoveryCloudKey = 'recovery_cloud_sync';
+
   static const _userKey = 'sync_user_id';
 
   final AppDatabase _database;
   final SyncRemote _remote;
   final UserProfileService _profiles;
 
-  SyncEngine(this._database, this._remote, this._profiles);
+  final bool includeRecovery;
+
+  SyncEngine(this._database, this._remote, this._profiles, {this.includeRecovery = false});
+
+  List<_TableSpec> get _tables => [..._baseTables, if (includeRecovery) ..._recoveryTables];
+
+  /// Al activar la sincronización del módulo: marca todo para subirlo.
+  static Future<void> markRecoveryForUpload(AppDatabase database) async {
+    final batch = database.db.batch();
+    for (final t in AppDatabase.recoveryTables) {
+      batch.update(t, {'dirty': 1});
+    }
+    await batch.commit(noResult: true);
+  }
+
+  /// Al desactivarla con borrado: elimina la copia en la nube y olvida el
+  /// cursor, para que una futura activación vuelva a subir todo.
+  Future<void> deleteRecoveryFromCloud(String userId) async {
+    await _remote.deleteAll('recovery_events', userId);
+    await _remote.deleteAll('recovery_goals', userId);
+    final prefs = await SharedPreferences.getInstance();
+    for (final t in AppDatabase.recoveryTables) {
+      await prefs.remove(_cursorKey(userId, t));
+    }
+  }
 
   Database get _db => _database.db;
 
