@@ -5,6 +5,7 @@ import '../domain/habit_stats.dart';
 import '../models/habit.dart';
 import '../providers/providers.dart';
 import '../services/notification_service.dart';
+import '../core/theme.dart';
 
 class HabitsScreen extends ConsumerWidget {
   const HabitsScreen({super.key});
@@ -60,7 +61,6 @@ class HabitsScreen extends ConsumerWidget {
     final accept = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
         title: const Text(
           'Recordatorios a la hora exacta',
           style: TextStyle(color: Colors.white),
@@ -68,7 +68,7 @@ class HabitsScreen extends ConsumerWidget {
         content: const Text(
           'Sin este permiso Android puede retrasar los recordatorios hasta una hora. '
           'En la siguiente pantalla activa "Permitir alarmas y recordatorios" para StepMind.',
-          style: TextStyle(color: Color(0xFFBDBDBD)),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
@@ -103,7 +103,6 @@ class HabitsScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
         title: const Text('Eliminar Hábito', style: TextStyle(color: Colors.white)),
         content: Text(
           '¿Estás seguro de que quieres eliminar "${habit.name}"? '
@@ -166,7 +165,7 @@ class HabitsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF3A3634),
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -240,7 +239,7 @@ class _HabitTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF3A3634),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: done ? Colors.green : Colors.transparent,
@@ -273,14 +272,14 @@ class _HabitTile extends StatelessWidget {
                     const SizedBox(width: 4),
                     Text(
                       habit.formattedTime,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                     ),
                     const SizedBox(width: 12),
                     const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
                     const SizedBox(width: 4),
                     Text(
                       'Racha: $streak ${streak == 1 ? 'día' : 'días'}',
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                     ),
                   ],
                 ),
@@ -288,7 +287,7 @@ class _HabitTile extends StatelessWidget {
             ),
           ),
           PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert, color: Colors.grey[400]),
+            icon: Icon(Icons.more_vert, color: AppColors.textMuted),
             onSelected: (value) => value == 'edit' ? onEdit() : onDelete(),
             itemBuilder: (context) => const [
               PopupMenuItem(value: 'edit', child: Text('Editar')),
@@ -310,16 +309,16 @@ class _EmptyHabits extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.task_alt, size: 64, color: Colors.grey[400]),
+          Icon(Icons.task_alt, size: 64, color: AppColors.textMuted),
           const SizedBox(height: 16),
           Text(
             'No tienes hábitos registrados',
-            style: TextStyle(color: Colors.grey[400], fontSize: 18),
+            style: TextStyle(color: AppColors.textMuted, fontSize: 18),
           ),
           const SizedBox(height: 8),
           Text(
             'Presiona el botón + para agregar tu primer hábito',
-            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+            style: TextStyle(color: AppColors.textMuted, fontSize: 14),
           ),
         ],
       ),
@@ -341,7 +340,7 @@ class _SummaryCard extends StatelessWidget {
           value,
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        Text(title, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+        Text(title, style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
       ],
     );
   }
@@ -391,7 +390,6 @@ class _HabitFormDialogState extends State<_HabitFormDialog> {
   Widget build(BuildContext context) {
     final isEditing = widget.initial != null;
     return AlertDialog(
-      backgroundColor: const Color(0xFF3A3634),
       title: Text(
         isEditing ? 'Editar Hábito' : 'Nuevo Hábito',
         style: const TextStyle(color: Colors.white),
@@ -407,7 +405,7 @@ class _HabitFormDialogState extends State<_HabitFormDialog> {
             decoration: const InputDecoration(
               labelText: 'Nombre del hábito',
               filled: true,
-              fillColor: Color(0xFF4A4543),
+              fillColor: AppColors.surfaceHigh,
             ),
             style: const TextStyle(color: Colors.white),
             onSubmitted: (_) => _submit(),
@@ -417,7 +415,7 @@ class _HabitFormDialogState extends State<_HabitFormDialog> {
             title: const Text('Hora del recordatorio', style: TextStyle(color: Colors.white)),
             subtitle: Text(
               '${_time.hour.toString().padLeft(2, '0')}:${_time.minute.toString().padLeft(2, '0')}',
-              style: const TextStyle(color: Colors.grey),
+              style: const TextStyle(color: AppColors.textMuted),
             ),
             trailing: const Icon(Icons.access_time, color: Colors.white),
             onTap: () async {

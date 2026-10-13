@@ -61,7 +61,6 @@ class _NewPasswordDialogState extends State<_NewPasswordDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF3A3634),
       title: const Text('Nueva contraseña', style: TextStyle(color: Colors.white)),
       content: Column(
         mainAxisSize: MainAxisSize.min,

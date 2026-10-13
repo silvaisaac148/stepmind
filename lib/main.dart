@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/supabase_config.dart';
+import 'core/theme.dart';
 
 import 'data/app_database.dart';
 import 'data/habit_repository.dart';
@@ -76,45 +78,10 @@ class _StepMindAppState extends ConsumerState<StepMindApp> {
     return MaterialApp(
       navigatorKey: _navigatorKey,
       title: 'StepMind',
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF282524),
-        primaryColor: const Color(0xFF282524),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF282524),
-          secondary: Color(0xFF4A4543),
-          surface: Color(0xFF3A3634),
-          onPrimary: Colors.white,
-          onSecondary: Colors.white,
-          onSurface: Colors.white,
-        ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF282524),
-          foregroundColor: Colors.white,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF4A4543),
-            foregroundColor: Colors.white,
-          ),
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          filled: true,
-          fillColor: Color(0xFF3A3634),
-          border: OutlineInputBorder(),
-          enabledBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Color(0xFF4A4543)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderSide: BorderSide(color: Color(0xFF6A6563)),
-          ),
-        ),
-        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Color(0xFF3A3634),
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.grey,
-        ),
-      ),
+      theme: AppTheme.dark(),
+      locale: const Locale('es'),
+      supportedLocales: const [Locale('es'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       home: const SplashScreen(),
       debugShowCheckedModeBanner: false,
     );

@@ -9,6 +9,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../models/habit.dart';
+import '../core/theme.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -27,7 +28,7 @@ class NotificationService {
     channelDescription: 'Notificaciones para recordar tus hábitos diarios',
     importance: Importance.high,
     priority: Priority.high,
-    color: Color(0xFF282524),
+    color: AppColors.background,
     icon: 'ic_notification',
   );
 

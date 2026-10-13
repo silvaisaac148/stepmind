@@ -9,6 +9,7 @@ import '../services/notification_service.dart';
 import 'calendar_screen.dart';
 import 'login_screen.dart';
 import 'profile_setup_screen.dart';
+import '../core/theme.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -92,9 +93,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ajustes'),
-        backgroundColor: const Color(0xFF282524),
+        backgroundColor: AppColors.background,
       ),
-      backgroundColor: const Color(0xFF282524),
+      backgroundColor: AppColors.background,
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -111,9 +112,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 subtitle: Text(
                   'Este mes: ${monthlyProgress.toStringAsFixed(1)}%',
-                  style: const TextStyle(color: Colors.grey),
+                  style: const TextStyle(color: AppColors.textMuted),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.textMuted),
                 onTap: () => _showProgressDialog(context, monthlyProgress),
               ),
               ListTile(
@@ -124,9 +125,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 subtitle: Text(
                   'Desbloqueados: ${stats?.unlockedAchievements ?? 0}/${achievements.length}',
-                  style: const TextStyle(color: Colors.grey),
+                  style: const TextStyle(color: AppColors.textMuted),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.textMuted),
                 onTap: () => _showAchievementsDialog(context, stats?.bestStreak ?? 0),
               ),
               ListTile(
@@ -137,9 +138,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 subtitle: const Text(
                   'Ver tu historial completo',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.textMuted),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (context) => const CalendarScreen()),
                 ),
@@ -158,7 +159,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 subtitle: const Text(
                   'Recibe recordatorios de hábitos',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
                 value: _notificationsEnabled,
                 onChanged: _setNotificationsEnabled,
@@ -173,9 +174,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   activeHabits.isEmpty
                       ? 'No hay horarios configurados'
                       : '${activeHabits.length} recordatorios activos',
-                  style: const TextStyle(color: Colors.grey),
+                  style: const TextStyle(color: AppColors.textMuted),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.textMuted),
                 onTap: () => _showNotificationTimesDialog(context),
               ),
               if (_notificationsEnabled && _exactRemindersAllowed != null)
@@ -192,11 +193,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     _exactRemindersAllowed!
                         ? 'Activado'
                         : 'Desactivado: pueden llegar con hasta 1 h de retraso. Toca para activarlo.',
-                    style: const TextStyle(color: Colors.grey),
+                    style: const TextStyle(color: AppColors.textMuted),
                   ),
                   trailing: _exactRemindersAllowed!
                       ? const Icon(Icons.check_circle, color: Colors.green)
-                      : const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                      : const Icon(Icons.arrow_forward_ios, color: AppColors.textMuted),
                   onTap: _exactRemindersAllowed!
                       ? null
                       : _notificationService.requestExactReminders,
@@ -210,9 +211,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   subtitle: const Text(
                     'Ajustes de batería según tu teléfono',
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(color: AppColors.textMuted),
                   ),
-                  trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                  trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.textMuted),
                   onTap: () => _showReminderHelpDialog(context),
                 ),
             ],
@@ -230,9 +231,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 subtitle: const Text(
                   'Protege tus datos personales',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.textMuted),
                 onTap: () => _showPrivacyDialog(context),
               ),
             ],
@@ -249,7 +250,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 subtitle: const Text(
                   'Versión 1.0.0',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
                 onTap: () => _showAboutDialog(context),
               ),
@@ -261,7 +262,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 subtitle: const Text(
                   'Obtener ayuda con la aplicación',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.textMuted),
                 ),
                 onTap: () => _showHelpDialog(context),
               ),
@@ -285,9 +286,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           subtitle: const Text(
             'Copia en la nube y usar StepMind en otro teléfono',
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: AppColors.textMuted),
           ),
-          trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+          trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.textMuted),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (context) => const LoginScreen(fromSettings: true)),
           ),
@@ -309,7 +310,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         title: Text(user.email ?? 'Cuenta', style: const TextStyle(color: Colors.white)),
         subtitle: Text(
           status,
-          style: TextStyle(color: sync.error != null ? Colors.orange : Colors.grey),
+          style: TextStyle(color: sync.error != null ? Colors.orange : AppColors.textMuted),
         ),
         trailing: sync.syncing
             ? const SizedBox(
@@ -318,7 +319,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : IconButton(
-                icon: const Icon(Icons.sync, color: Colors.grey),
+                icon: const Icon(Icons.sync, color: AppColors.textMuted),
                 tooltip: 'Sincronizar ahora',
                 onPressed: () => ref.read(syncProvider.notifier).syncNow(),
               ),
@@ -335,12 +336,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final wipe = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
         title: const Text('Cerrar sesión', style: TextStyle(color: Colors.white)),
         content: const Text(
           'Tus datos quedan guardados en la nube. ¿Quieres conservarlos también en '
           'este teléfono o borrarlos de él?',
-          style: TextStyle(color: Color(0xFFBDBDBD)),
+          style: TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
@@ -386,7 +386,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF3A3634),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(children: children),
@@ -399,7 +399,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
         title: const Text(
           'Progreso General',
           style: TextStyle(color: Colors.white),
@@ -415,7 +414,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const SizedBox(height: 16),
               LinearProgressIndicator(
                 value: monthlyProgress / 100,
-                backgroundColor: const Color(0xFF4A4543),
+                backgroundColor: AppColors.surfaceHigh,
                 valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
               ),
               const SizedBox(height: 16),
@@ -425,7 +424,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     : monthlyProgress >= 50
                         ? '¡Buen progreso! Puedes mejorar.'
                         : '¡Sigue esforzándote! Tú puedes.',
-                style: const TextStyle(color: Color(0xFFBDBDBD)),
+                style: const TextStyle(color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -444,7 +443,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
         title: const Text(
           'Logros',
           style: TextStyle(color: Colors.white),
@@ -482,7 +480,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         children: [
           Icon(
             unlocked ? Icons.emoji_events : Icons.lock,
-            color: unlocked ? const Color(0xFFFFD700) : Colors.grey,
+            color: unlocked ? AppColors.yellow : AppColors.textMuted,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -492,14 +490,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Text(
                   title,
                   style: TextStyle(
-                    color: unlocked ? Colors.white : Colors.grey,
+                    color: unlocked ? Colors.white : AppColors.textMuted,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   description,
                   style: TextStyle(
-                    color: unlocked ? Colors.grey[300] : Colors.grey[500],
+                    color: unlocked ? AppColors.textSecondary : AppColors.textMuted,
                     fontSize: 12,
                   ),
                 ),
@@ -516,7 +514,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
         title: const Text(
           'Horarios de Recordatorios',
           style: TextStyle(color: Colors.white),
@@ -529,13 +526,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               const Text(
                 'Estos son los horarios configurados según tus hábitos:',
-                style: TextStyle(color: Color(0xFFBDBDBD)),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 16),
               if (notificationTimes.isEmpty)
                 const Text(
                   'No hay hábitos configurados. Añade hábitos para ver sus horarios aquí.',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: AppColors.textMuted),
                 )
               else
                 ...notificationTimes.map((time) => Padding(
@@ -554,7 +551,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const SizedBox(height: 16),
               const Text(
                 'Las notificaciones se envían automáticamente según los horarios de tus hábitos.',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
             ],
           ),
@@ -593,7 +590,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
         title: const Text(
           '¿No te llegan los recordatorios?',
           style: TextStyle(color: Colors.white),
@@ -606,7 +602,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               const Text(
                 'Algunos teléfonos cierran las apps en segundo plano para ahorrar '
                 'batería y eso bloquea los recordatorios. Revisa estos ajustes:',
-                style: TextStyle(color: Color(0xFFBDBDBD)),
+                style: TextStyle(color: AppColors.textSecondary),
               ),
               for (final (brand, tip) in tips) ...[
                 const SizedBox(height: 12),
@@ -615,12 +611,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 2),
-                Text(tip, style: const TextStyle(color: Colors.grey)),
+                Text(tip, style: const TextStyle(color: AppColors.textMuted)),
               ],
               const SizedBox(height: 12),
               const Text(
                 'Los nombres de los menús pueden variar según la versión del sistema.',
-                style: TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
             ],
           ),
@@ -679,7 +675,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
         title: const Text(
           'Privacidad y Seguridad',
           style: TextStyle(color: Colors.white),
@@ -702,7 +697,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
         title: const Text(
           'Acerca de StepMind',
           style: TextStyle(color: Colors.white),
@@ -718,12 +712,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             SizedBox(height: 8),
             Text(
               'Tu compañero para desarrollar hábitos positivos y superar adicciones.',
-              style: TextStyle(color: Color(0xFFBDBDBD)),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
             SizedBox(height: 8),
             Text(
               '© 2026 StepMind. Todos los derechos reservados.',
-              style: TextStyle(color: Color(0xFFBDBDBD)),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -741,7 +735,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
         title: const Text(
           'Ayuda y Soporte',
           style: TextStyle(color: Colors.white),
@@ -774,9 +767,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             subtitle: const Text(
               'Agrega tu información personal',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: AppColors.textMuted),
             ),
-            trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+            trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.textMuted),
             onTap: () => _navigateToProfileSetup(isEditing: false),
           ),
         ],
@@ -789,12 +782,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ListTile(
           leading: CircleAvatar(
             radius: 20,
-            backgroundColor: const Color(0xFF4A4543),
+            backgroundColor: AppColors.surfaceHigh,
             backgroundImage: userProfile.profileImagePath != null
                 ? FileImage(File(userProfile.profileImagePath!))
                 : null,
             child: userProfile.profileImagePath == null
-                ? const Icon(Icons.person, color: Colors.grey)
+                ? const Icon(Icons.person, color: AppColors.textMuted)
                 : null,
           ),
           title: Text(
@@ -803,20 +796,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           subtitle: Text(
             '@${userProfile.username}',
-            style: const TextStyle(color: Colors.grey),
+            style: const TextStyle(color: AppColors.textMuted),
           ),
           trailing: const Icon(Icons.edit, color: Colors.blue),
           onTap: () => _navigateToProfileSetup(isEditing: true),
         ),
         ListTile(
-          leading: const Icon(Icons.info_outline, color: Colors.grey),
+          leading: const Icon(Icons.info_outline, color: AppColors.textMuted),
           title: Text(
             'Edad: ${userProfile.age}',
             style: const TextStyle(color: Colors.white),
           ),
         ),
         ListTile(
-          leading: const Icon(Icons.public, color: Colors.grey),
+          leading: const Icon(Icons.public, color: AppColors.textMuted),
           title: Text(
             'País: ${userProfile.country}',
             style: const TextStyle(color: Colors.white),

@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../models/user_profile.dart';
 import '../providers/providers.dart';
 import '../services/user_profile_service.dart';
+import '../core/theme.dart';
 
 class ProfileSetupScreen extends ConsumerStatefulWidget {
   final UserProfile? existingProfile;
@@ -107,7 +108,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   void _showImagePicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF3A3634),
+      backgroundColor: AppColors.surface,
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -214,9 +215,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF282524),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF3A3634),
+        backgroundColor: AppColors.surface,
         title: Text(
           widget.existingProfile == null ? 'Configurar Perfil' : 'Editar Perfil',
           style: const TextStyle(color: Colors.white),
@@ -237,8 +238,8 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFF4A4543),
-                    border: Border.all(color: Colors.grey, width: 2),
+                    color: AppColors.surfaceHigh,
+                    border: Border.all(color: AppColors.textMuted, width: 2),
                   ),
                   child: _profileImagePath != null
                       ? ClipOval(
@@ -258,7 +259,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               const SizedBox(height: 10),
               const Text(
                 'Toca para cambiar foto',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: TextStyle(color: AppColors.textMuted, fontSize: 14),
               ),
               const SizedBox(height: 30),
 
@@ -339,7 +340,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     return const Icon(
       Icons.person,
       size: 50,
-      color: Colors.grey,
+      color: AppColors.textMuted,
     );
   }
 
@@ -357,16 +358,16 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.grey),
+        labelStyle: const TextStyle(color: AppColors.textMuted),
         filled: true,
-        fillColor: const Color(0xFF4A4543),
+        fillColor: AppColors.surfaceHigh,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Colors.grey),
+          borderSide: const BorderSide(color: AppColors.textMuted),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Colors.grey),
+          borderSide: const BorderSide(color: AppColors.textMuted),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -376,7 +377,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: Colors.red),
         ),
-        prefixIcon: Icon(icon, color: Colors.grey),
+        prefixIcon: Icon(icon, color: AppColors.textMuted),
       ),
     );
   }
@@ -404,8 +405,8 @@ class _ImagePickerOption extends StatelessWidget {
             height: 60,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF4A4543),
-              border: Border.all(color: Colors.grey, width: 1),
+              color: AppColors.surfaceHigh,
+              border: Border.all(color: AppColors.textMuted, width: 1),
             ),
             child: Icon(icon, color: Colors.white, size: 30),
           ),

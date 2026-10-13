@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/dates.dart';
 import '../domain/habit_stats.dart';
+import '../core/theme.dart';
 
 /// Cuadrícula de un mes (semana empezando en lunes). Cada día se colorea según
 /// su [DayStatus] y muestra un punto si tiene eventos.
@@ -26,10 +27,10 @@ class MonthCalendar extends StatelessWidget {
   static const _weekdays = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
   static Color statusColor(DayStatus status) => switch (status) {
-        DayStatus.perfect => Colors.green[700]!,
-        DayStatus.partial => Colors.amber[800]!,
-        DayStatus.missed => Colors.red[800]!,
-        DayStatus.pending => const Color(0xFF4A4543),
+        DayStatus.perfect => AppColors.orange,
+        DayStatus.partial => AppColors.orangeDeep,
+        DayStatus.missed => AppColors.surfaceHigh,
+        DayStatus.pending => AppColors.petrol700,
         DayStatus.empty || DayStatus.future => Colors.transparent,
       };
 
@@ -47,7 +48,7 @@ class MonthCalendar extends StatelessWidget {
                 child: Center(
                   child: Text(
                     d,
-                    style: TextStyle(color: Colors.grey[400], fontWeight: FontWeight.bold),
+                    style: const TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
@@ -69,15 +70,15 @@ class MonthCalendar extends StatelessWidget {
             return GestureDetector(
               onTap: () => onSelect(day),
               child: Container(
-                margin: const EdgeInsets.all(2),
+                margin: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
                   color: statusColor(status),
-                  borderRadius: BorderRadius.circular(8),
+                  shape: BoxShape.circle,
                   border: Border.all(
                     color: isSelected
                         ? Colors.white
                         : isToday
-                            ? Colors.blue
+                            ? AppColors.yellow
                             : Colors.transparent,
                     width: 2,
                   ),
@@ -88,8 +89,8 @@ class MonthCalendar extends StatelessWidget {
                       child: Text(
                         '${day.day}',
                         style: TextStyle(
-                          color: status == DayStatus.future ? Colors.grey[600] : Colors.white,
-                          fontWeight: isSelected || isToday ? FontWeight.bold : FontWeight.normal,
+                          color: status == DayStatus.future ? AppColors.textMuted : Colors.white,
+                          fontWeight: isSelected || isToday ? FontWeight.w800 : FontWeight.w600,
                         ),
                       ),
                     ),
@@ -99,7 +100,7 @@ class MonthCalendar extends StatelessWidget {
                         left: 0,
                         right: 0,
                         child: Center(
-                          child: CircleAvatar(radius: 2.5, backgroundColor: Colors.lightBlueAccent),
+                          child: CircleAvatar(radius: 2.5, backgroundColor: AppColors.teal),
                         ),
                       ),
                   ],

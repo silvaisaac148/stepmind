@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../core/theme.dart';
 
 class AddictionsScreen extends StatelessWidget {
   const AddictionsScreen({super.key});
@@ -71,7 +72,7 @@ class AddictionsScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF3A3634),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -111,7 +112,7 @@ class AddictionsScreen extends StatelessWidget {
                   child: Text(
                     item,
                     style: TextStyle(
-                      color: Colors.grey[300],
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 ),
@@ -132,7 +133,7 @@ class AddictionsScreen extends StatelessWidget {
         return Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFF3A3634),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
@@ -172,7 +173,7 @@ class AddictionsScreen extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     'Necesitas conexión a internet para ver los recursos.',
-                    style: TextStyle(color: Colors.grey.shade300),
+                    style: TextStyle(color: AppColors.textSecondary),
                   ),
                 ),
             ],

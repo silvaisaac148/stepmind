@@ -6,9 +6,13 @@ import '../domain/habit_stats.dart';
 import '../models/calendar_event.dart';
 import '../providers/providers.dart';
 import '../widgets/month_calendar.dart';
+import '../core/theme.dart';
 
 class CalendarScreen extends ConsumerStatefulWidget {
-  const CalendarScreen({super.key});
+  /// Día que se muestra seleccionado al abrir (por defecto, hoy).
+  final DateTime? initialDay;
+
+  const CalendarScreen({super.key, this.initialDay});
 
   @override
   ConsumerState<CalendarScreen> createState() => _CalendarScreenState();
@@ -21,9 +25,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
   @override
   void initState() {
     super.initState();
-    final today = ref.read(todayProvider);
-    _selectedDate = today;
-    _focusedMonth = DateTime(today.year, today.month);
+    _selectedDate = widget.initialDay ?? ref.read(todayProvider);
+    _focusedMonth = DateTime(_selectedDate.year, _selectedDate.month);
   }
 
   Future<void> _addEvent() async {
@@ -33,6 +36,24 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     );
     if (title == null || title.trim().isEmpty) return;
     await ref.read(eventsProvider.notifier).add(_selectedDate, title);
+  }
+
+  /// Selector emergente con el fondo oscurecido (efecto del Figma).
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      cancelText: 'CANCELAR',
+      confirmText: 'ACEPTAR',
+      helpText: 'Ir a una fecha',
+    );
+    if (picked == null) return;
+    setState(() {
+      _selectedDate = picked;
+      _focusedMonth = DateTime(picked.year, picked.month);
+    });
   }
 
   @override
@@ -68,12 +89,18 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1);
                 }),
               ),
-              Text(
-                '${monthNames[_focusedMonth.month - 1]} ${_focusedMonth.year}',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+              TextButton.icon(
+                onPressed: _pickDate,
+                iconAlignment: IconAlignment.end,
+                icon: const Icon(Icons.expand_more_rounded),
+                label: Text(
+                  '${monthNames[_focusedMonth.month - 1]} ${_focusedMonth.year}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.chevron_right),
@@ -97,7 +124,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF3A3634),
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -109,7 +136,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 ),
                 const SizedBox(height: 12),
                 if (dayHabits.isNotEmpty && !_selectedDate.isAfter(today)) ...[
-                  const Text('Hábitos', style: TextStyle(color: Colors.grey)),
+                  const Text('Hábitos', style: TextStyle(color: AppColors.textMuted)),
                   for (final habit in dayHabits)
                     ListTile(
                       dense: true,
@@ -119,35 +146,35 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                             ? Icons.check_circle
                             : Icons.radio_button_unchecked,
                         color: data.isDone(habit.id, _selectedDate)
-                            ? Colors.green
-                            : Colors.grey,
+                            ? AppColors.orange
+                            : AppColors.textMuted,
                       ),
                       title: Text(habit.name, style: const TextStyle(color: Colors.white)),
                     ),
                   const SizedBox(height: 8),
                 ],
-                const Text('Eventos', style: TextStyle(color: Colors.grey)),
+                const Text('Eventos', style: TextStyle(color: AppColors.textMuted)),
                 const SizedBox(height: 8),
                 if (dayEvents.isEmpty)
-                  Text('No hay eventos para este día', style: TextStyle(color: Colors.grey[400]))
+                  Text('No hay eventos para este día', style: TextStyle(color: AppColors.textMuted))
                 else
                   for (final event in dayEvents)
                     Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4A4543),
+                        color: AppColors.surfaceHigh,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.event, color: Colors.blue, size: 20),
+                          const Icon(Icons.event, color: AppColors.teal, size: 20),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(event.title, style: const TextStyle(color: Colors.white)),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                            icon: const Icon(Icons.delete_outline, color: AppColors.coral, size: 20),
                             tooltip: 'Eliminar evento',
                             onPressed: () => ref.read(eventsProvider.notifier).delete(event.id),
                           ),
@@ -180,7 +207,7 @@ class _Legend extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            Text(label, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+            Text(label, style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
           ],
         );
 
@@ -217,7 +244,6 @@ class _AddEventDialogState extends State<_AddEventDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF3A3634),
       title: Text(
         'Agregar Evento - ${formatDate(widget.date)}',
         style: const TextStyle(color: Colors.white),
@@ -229,7 +255,7 @@ class _AddEventDialogState extends State<_AddEventDialog> {
         decoration: const InputDecoration(
           labelText: 'Descripción del evento',
           filled: true,
-          fillColor: Color(0xFF4A4543),
+          fillColor: AppColors.surfaceHigh,
         ),
         style: const TextStyle(color: Colors.white),
         onSubmitted: (value) => Navigator.pop(context, value),

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/dates.dart';
+import '../domain/habit_stats.dart';
 import '../providers/providers.dart';
 import '../services/notification_service.dart';
 import 'addictions_screen.dart';
@@ -8,6 +10,8 @@ import 'calendar_screen.dart';
 import 'habits_screen.dart';
 import 'settings_screen.dart';
 import 'stats_screen.dart';
+import '../core/theme.dart';
+import '../widgets/brand.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -62,24 +66,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: IndexedStack(
         index: _currentIndex,
         children: [
-          const _HomeTab(),
+          _HomeTab(onOpenHabits: () => setState(() => _currentIndex = _habitsTab)),
           const StatsScreen(),
           const HabitsScreen(),
           const AddictionsScreen(),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        backgroundColor: const Color(0xFF3A3634),
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.grey[400],
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Estadísticas'),
-          BottomNavigationBarItem(icon: Icon(Icons.task_alt), label: 'Hábitos'),
-          BottomNavigationBarItem(icon: Icon(Icons.psychology), label: 'Adicciones'),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: 'Inicio',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.pie_chart_outline),
+            selectedIcon: Icon(Icons.pie_chart),
+            label: 'Progreso',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.add_task_outlined),
+            selectedIcon: Icon(Icons.add_task),
+            label: 'Hábitos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.self_improvement_outlined),
+            selectedIcon: Icon(Icons.self_improvement),
+            label: 'Adicciones',
+          ),
         ],
       ),
     );
@@ -87,103 +103,132 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 }
 
 class _HomeTab extends ConsumerWidget {
-  const _HomeTab();
+  final VoidCallback onOpenHabits;
+
+  const _HomeTab({required this.onOpenHabits});
+
+  static const _messages = [
+    ('Cada paso hacia adelante', 'es uno menos para el éxito anhelado.\n¡Empieza hoy a luchar por tus metas!'),
+    ('No tienes que ser perfecto', 'solo constante. Un mal día no borra tu progreso.'),
+    ('La disciplina es elegir', 'entre lo que quieres ahora y lo que más quieres.'),
+    ('Los hábitos tardan unos 66 días', 'en volverse automáticos. Sigue sumando días.'),
+    ('Una urgencia es como una ola', 'sube, llega a su punto más alto y baja. Puedes surfearla.'),
+    ('Hoy cuenta', 'aunque sea un paso pequeño.'),
+    ('Recuerda tu porqué', 'es más fuerte que cualquier impulso del momento.'),
+  ];
+
+  void _openCalendar(BuildContext context, [DateTime? day]) => Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => CalendarScreen(initialDay: day)),
+      );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(profileProvider).value;
     final stats = ref.watch(statsProvider).value;
+    final data = ref.watch(habitsProvider).value ?? HabitData.empty;
+    final today = ref.watch(todayProvider);
     final firstName = profile?.firstName ?? '';
     final email = ref.watch(authUserProvider).value?.email;
-    final greetingName = firstName.isNotEmpty ? firstName : email?.split('@').first;
+    final name = firstName.isNotEmpty ? firstName : email?.split('@').first;
+    final message = _messages[today.difference(DateTime(2026)).inDays.abs() % _messages.length];
+    final streak = stats?.currentStreak ?? 0;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(greetingName == null ? 'Bienvenido' : 'Bienvenido, $greetingName'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'Ajustes',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const SettingsScreen()),
+    return SafeArea(
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.calendar_month_rounded, size: 30),
+                tooltip: 'Calendario',
+                onPressed: () => _openCalendar(context),
+              ),
+              _StreakChip(streak: streak),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.settings_rounded, size: 28),
+                tooltip: 'Ajustes',
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            name == null ? '¡Hola!' : '¡Hola, $name!',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 15),
+          ),
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _openCalendar(context),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                '${monthNames[today.month - 1]} ${today.year}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+              ),
             ),
+          ),
+          const SizedBox(height: 12),
+          _WeekStrip(
+            today: today,
+            statusOf: (day) => dayStatus(data, day, today),
+            onTap: (day) => _openCalendar(context, day),
+          ),
+          const SizedBox(height: 24),
+          _TodayCard(stats: stats, onOpenHabits: onOpenHabits),
+          const SizedBox(height: 32),
+          Text(
+            message.$1,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message.$2,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, color: AppColors.textSecondary, height: 1.4),
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+    );
+  }
+}
+
+class _StreakChip extends StatelessWidget {
+  final int streak;
+
+  const _StreakChip({required this.streak});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Racha de $streak días',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.orange.withValues(alpha: streak > 0 ? 0.18 : 0.08),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3A3634),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.psychology,
-                    size: 100,
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'StepMind',
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Tu compañero para desarrollar hábitos positivos',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Colors.grey[300],
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 30),
-                  ElevatedButton.icon(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (context) => const CalendarScreen()),
-                    ),
-                    icon: const Icon(Icons.calendar_today),
-                    label: const Text('Ver Calendario'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    ),
-                  ),
-                ],
-              ),
+            Icon(
+              Icons.local_fire_department_rounded,
+              color: streak > 0 ? AppColors.orange : AppColors.textMuted,
+              size: 24,
             ),
-            const SizedBox(height: 40),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3A3634),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _StatCard(
-                    title: 'Hábitos',
-                    value: '${stats?.activeHabits ?? 0}',
-                    icon: Icons.trending_up,
-                  ),
-                  _StatCard(
-                    title: 'Progreso hoy',
-                    value: '${((stats?.dailyProgress ?? 0) * 100).round()}%',
-                    icon: Icons.pie_chart,
-                  ),
-                  _StatCard(
-                    title: 'Racha',
-                    value: '${stats?.currentStreak ?? 0}',
-                    icon: Icons.local_fire_department,
-                  ),
-                ],
+            const SizedBox(width: 2),
+            Text(
+              '$streak',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                color: streak > 0 ? AppColors.orange : AppColors.textMuted,
               ),
             ),
           ],
@@ -193,36 +238,145 @@ class _HomeTab extends ConsumerWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final IconData icon;
+/// Tira de 7 días con hoy en el centro (diseño de Figma).
+class _WeekStrip extends StatelessWidget {
+  final DateTime today;
+  final DayStatus Function(DateTime day) statusOf;
+  final ValueChanged<DateTime> onTap;
 
-  const _StatCard({required this.title, required this.value, required this.icon});
+  const _WeekStrip({required this.today, required this.statusOf, required this.onTap});
+
+  static const _names = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
+
+  static Color _circleColor(DayStatus status) => switch (status) {
+        DayStatus.perfect => AppColors.orange,
+        DayStatus.partial => AppColors.orangeDeep,
+        DayStatus.missed => AppColors.surfaceHigh,
+        DayStatus.pending => AppColors.petrol700,
+        DayStatus.empty || DayStatus.future => AppColors.surface,
+      };
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF4A4543),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        for (var offset = -3; offset <= 3; offset++)
+          Builder(builder: (context) {
+            final day = addDays(today, offset);
+            final isToday = offset == 0;
+            final status = statusOf(day);
+            return Semantics(
+              button: true,
+              label: '${_names[day.weekday - 1]} ${day.day}${isToday ? ', hoy' : ''}',
+              child: GestureDetector(
+                onTap: () => onTap(day),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: 44,
+                  padding: const EdgeInsets.only(top: 6, bottom: 4),
+                  decoration: BoxDecoration(
+                    gradient: isToday ? AppColors.orangeGradient : null,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        _names[day.weekday - 1],
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          color: isToday ? Colors.white : AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isToday ? Colors.white : _circleColor(status),
+                        ),
+                        child: Text(
+                          '${day.day}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: isToday ? AppColors.orange : Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+class _TodayCard extends StatelessWidget {
+  final OverallStats? stats;
+  final VoidCallback onOpenHabits;
+
+  const _TodayCard({required this.stats, required this.onOpenHabits});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = stats?.activeHabits ?? 0;
+    final done = stats?.completedToday ?? 0;
+    final progress = stats?.dailyProgress ?? 0;
+    final allDone = total > 0 && done == total;
+
+    return GradientCard(
+      onTap: onOpenHabits,
+      child: Row(
         children: [
-          Icon(icon, color: Colors.white, size: 30),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+          ProgressRing(
+            value: progress,
+            semanticsLabel: 'Hábitos completados hoy',
+            color: allDone ? AppColors.yellow : AppColors.orange,
+            center: Text(
+              '$done/$total',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
             ),
           ),
-          Text(
-            title,
-            style: TextStyle(fontSize: 14, color: Colors.grey[300]),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  total == 0
+                      ? 'Crea tu primer hábito'
+                      : allDone
+                          ? '¡Día completo! 🎉'
+                          : 'Hábitos de hoy',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  total == 0
+                      ? 'Empieza con uno pequeño y fácil de cumplir.'
+                      : allDone
+                          ? 'Mejor racha: ${stats?.bestStreak ?? 0} días'
+                          : 'Te faltan ${total - done}. ¡Tú puedes!',
+                  style: const TextStyle(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 10),
+                const Row(
+                  children: [
+                    Text(
+                      'Ver hábitos',
+                      style: TextStyle(color: AppColors.orange, fontWeight: FontWeight.w800),
+                    ),
+                    Icon(Icons.chevron_right_rounded, color: AppColors.orange),
+                  ],
+                ),
+              ],
+            ),
           ),
         ],
       ),

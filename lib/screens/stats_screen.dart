@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/dates.dart';
 import '../domain/habit_stats.dart';
 import '../providers/providers.dart';
+import '../core/theme.dart';
 
 class StatsScreen extends ConsumerWidget {
   const StatsScreen({super.key});
@@ -85,7 +86,7 @@ class _RecentActivity extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF3A3634),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -99,7 +100,7 @@ class _RecentActivity extends StatelessWidget {
           if (data.habits.isEmpty)
             Text(
               'Agrega tu primer hábito para comenzar',
-              style: TextStyle(color: Colors.grey[400], fontSize: 14),
+              style: TextStyle(color: AppColors.textMuted, fontSize: 14),
             )
           else
             Row(
@@ -110,7 +111,7 @@ class _RecentActivity extends StatelessWidget {
                     children: [
                       Text(
                         _weekdays[day.weekday - 1],
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                       ),
                       const SizedBox(height: 6),
                       _DayDot(ratio: completionRatio(data, day)),
@@ -133,7 +134,7 @@ class _DayDot extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = ratio;
     final color = r == null
-        ? const Color(0xFF4A4543)
+        ? AppColors.surfaceHigh
         : Color.lerp(Colors.red[700], Colors.green[600], r)!;
     return Container(
       width: 32,
@@ -168,7 +169,7 @@ class _ProgressCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFF3A3634),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -191,7 +192,7 @@ class _ProgressCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white),
                 ),
                 const SizedBox(height: 4),
-                Text(description, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+                Text(description, style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
               ],
             ),
           ),
