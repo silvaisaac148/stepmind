@@ -7,8 +7,8 @@
 | 0. Saneamiento (git, dependencias, limpieza, test) | ✅ Hecha | `7036bc6` |
 | 1. SQLite + Riverpod + estadísticas derivadas | ✅ Hecha | `c37e56c` |
 | 2. Notificaciones correctas + foto persistente | ✅ Hecha | `31e1e0c` |
-| 2b. Alarmas exactas + ayuda de batería | ✅ Hecha (falta probar en el teléfono) | ver git log |
-| 3. Supabase: auth real + sincronización | 🟡 Código hecho; falta configurar el panel y probar | ver git log |
+| 2b. Alarmas exactas + ayuda de batería | ✅ Hecha y probada en el teléfono | `fbeca72` |
+| 3. Supabase: auth real + sincronización | ✅ Hecha y probada en el teléfono | `abfee00` |
 | 4. Diseño, tema, i18n, accesibilidad | ⏳ Pendiente (diseño en curso) | |
 | 5. Publicación en Play Store | ⏳ Pendiente | |
 
@@ -43,13 +43,19 @@ flutter build apk --release --split-per-abi --dart-define-from-file=config/supab
 
 Sin ese parámetro la app compila sin cuentas (solo "Continuar sin cuenta").
 
-### Pasos en el panel (pendientes del usuario)
+### Pasos en el panel (hechos el 2026-10-13)
 
 1. SQL Editor → ejecutar `supabase/migrations/20261013000000_init.sql`.
 2. Authentication → URL Configuration → Redirect URLs → añadir `io.stepmind.app://login-callback`.
 3. Google: en Google Cloud Console crear cliente OAuth tipo **Aplicación web** con URI de
    redirección `https://tvyppqlsogyoyaoijhkv.supabase.co/auth/v1/callback`; pegar Client ID
    y Secret en Authentication → Sign In / Providers → Google y activarlo.
+
+## Prueba en dispositivo real (2026-10-13)
+
+Login con Google y con correo, sincronización y migración de la base v1→v2 (instalación
+encima de la versión anterior) funcionan. Recordatorio a la hora exacta confirmado con
+`dumpsys alarm`: `window=0 exactAllowReason=permission`. Sin errores en logcat.
 
 ## Prueba en dispositivo real (2026-10-12)
 
