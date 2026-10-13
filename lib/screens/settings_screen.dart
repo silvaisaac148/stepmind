@@ -1,69 +1,61 @@
-import 'package:flutter/material.dart';
-import '../models/user_profile.dart';
-import '../services/habit_service.dart';
-import '../services/notification_service.dart';
-import '../services/stats_service.dart';
-import '../services/user_profile_service.dart';
-import '../screens/profile_setup_screen.dart';
 import 'dart:io';
 
-class SettingsScreen extends StatefulWidget {
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../domain/habit_stats.dart';
+import '../providers/providers.dart';
+import '../services/notification_service.dart';
+import 'calendar_screen.dart';
+import 'profile_setup_screen.dart';
+
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
-  final HabitService _habitService = HabitService();
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final NotificationService _notificationService = NotificationService();
-  final StatsService _statsService = StatsService();
-  final UserProfileService _userProfileService = UserProfileService();
-  
+
   bool _notificationsEnabled = true;
-  List<String> _notificationTimes = [];
-  Map<String, dynamic> _stats = {};
-  double _monthlyProgress = 0.0;
-  UserProfile? _userProfile;
+
+  List<String> get _notificationTimes =>
+      (ref.read(habitsProvider).value?.activeHabits ?? const [])
+          .map((habit) => habit.formattedTime)
+          .toSet()
+          .toList()
+        ..sort();
 
   @override
   void initState() {
     super.initState();
     _loadNotificationSettings();
-    _loadStats();
-    _loadUserProfile();
   }
 
   Future<void> _loadNotificationSettings() async {
     final enabled = await _notificationService.areNotificationsEnabled();
-    final habits = await _habitService.getHabits();
-    final times = habits.map((habit) => habit.formattedTime).toList();
-    
-    setState(() {
-      _notificationsEnabled = enabled;
-      _notificationTimes = times;
-    });
+    if (!mounted) return;
+    setState(() => _notificationsEnabled = enabled);
   }
 
-  Future<void> _loadStats() async {
-    final stats = await _statsService.getStats();
-    final monthlyProgress = await _statsService.getMonthlyProgress();
-    
-    setState(() {
-      _stats = stats;
-      _monthlyProgress = monthlyProgress;
-    });
-  }
-
-  Future<void> _loadUserProfile() async {
-    final profile = await _userProfileService.getProfile();
-    setState(() {
-      _userProfile = profile;
-    });
+  Future<void> _setNotificationsEnabled(bool value) async {
+    await _notificationService.setNotificationsEnabled(value);
+    if (value) {
+      final habits = ref.read(habitsProvider).value?.activeHabits ?? const [];
+      await ref.read(reminderSchedulerProvider).reschedule(habits);
+    }
+    if (!mounted) return;
+    setState(() => _notificationsEnabled = value);
   }
 
   @override
   Widget build(BuildContext context) {
+    final stats = ref.watch(statsProvider).value;
+    final monthlyProgress = (stats?.monthlyProgress ?? 0) * 100;
+    final activeHabits = ref.watch(habitsProvider).value?.activeHabits ?? const [];
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ajustes'),
@@ -76,27 +68,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildProfileSection(),
           const SizedBox(height: 20),
           _buildSection(
-            'Apariencia',
-            [
-              ListTile(
-                leading: const Icon(Icons.palette, color: Colors.blue),
-                title: const Text(
-                  'Tema',
-                  style: TextStyle(color: Colors.white),
-                ),
-                subtitle: const Text(
-                  'Personaliza la apariencia',
-                  style: TextStyle(color: Colors.grey),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
-                onTap: () {
-                  // Implementar selector de tema
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _buildSection(
             'Progresos y Estadísticas',
             [
               ListTile(
@@ -106,11 +77,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(color: Colors.white),
                 ),
                 subtitle: Text(
-                  'Este mes: ${_monthlyProgress.toStringAsFixed(1)}%',
+                  'Este mes: ${monthlyProgress.toStringAsFixed(1)}%',
                   style: const TextStyle(color: Colors.grey),
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
-                onTap: () => _showProgressDialog(context),
+                onTap: () => _showProgressDialog(context, monthlyProgress),
               ),
               ListTile(
                 leading: const Icon(Icons.emoji_events, color: Colors.orange),
@@ -119,11 +90,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(color: Colors.white),
                 ),
                 subtitle: Text(
-                  'Desbloqueados: ${_stats['achievements'] ?? 0}',
+                  'Desbloqueados: ${stats?.unlockedAchievements ?? 0}/${achievements.length}',
                   style: const TextStyle(color: Colors.grey),
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
-                onTap: () => _showAchievementsDialog(context),
+                onTap: () => _showAchievementsDialog(context, stats?.bestStreak ?? 0),
               ),
               ListTile(
                 leading: const Icon(Icons.history, color: Colors.purple),
@@ -136,7 +107,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(color: Colors.grey),
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
-                onTap: () => _showHistoryDialog(context),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const CalendarScreen()),
+                ),
               ),
             ],
           ),
@@ -155,12 +128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(color: Colors.grey),
                 ),
                 value: _notificationsEnabled,
-                onChanged: (value) async {
-                  await _notificationService.setNotificationsEnabled(value);
-                  setState(() {
-                    _notificationsEnabled = value;
-                  });
-                },
+                onChanged: _setNotificationsEnabled,
               ),
               ListTile(
                 leading: const Icon(Icons.alarm, color: Colors.green),
@@ -169,9 +137,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   style: TextStyle(color: Colors.white),
                 ),
                 subtitle: Text(
-                  _notificationTimes.isEmpty 
-                    ? 'No hay horarios configurados'
-                    : '${_notificationTimes.length} horarios activos',
+                  activeHabits.isEmpty
+                      ? 'No hay horarios configurados'
+                      : '${activeHabits.length} recordatorios activos',
                   style: const TextStyle(color: Colors.grey),
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
@@ -183,19 +151,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSection(
             'Cuenta',
             [
-              ListTile(
-                leading: const Icon(Icons.person, color: Colors.blue),
-                title: const Text(
-                  'Perfil de Usuario',
-                  style: TextStyle(color: Colors.white),
-                ),
-                subtitle: const Text(
-                  'Gestiona tu información personal',
-                  style: TextStyle(color: Colors.grey),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
-                onTap: () => _showProfileDialog(context),
-              ),
               ListTile(
                 leading: const Icon(Icons.privacy_tip, color: Colors.teal),
                 title: const Text(
@@ -225,9 +180,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Versión 1.0.0',
                   style: TextStyle(color: Colors.grey),
                 ),
-                onTap: () {
-                  _showAboutDialog(context);
-                },
+                onTap: () => _showAboutDialog(context),
               ),
               ListTile(
                 leading: const Icon(Icons.help, color: Colors.teal),
@@ -239,9 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Obtener ayuda con la aplicación',
                   style: TextStyle(color: Colors.grey),
                 ),
-                onTap: () {
-                  _showHelpDialog(context);
-                },
+                onTap: () => _showHelpDialog(context),
               ),
             ],
           ),
@@ -276,7 +227,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showProgressDialog(BuildContext context) {
+  void _showProgressDialog(BuildContext context, double monthlyProgress) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -290,22 +241,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Este mes has completado el ${_monthlyProgress.toStringAsFixed(1)}% de tus hábitos',
+                'Este mes has completado el ${monthlyProgress.toStringAsFixed(1)}% de tus hábitos',
                 style: const TextStyle(color: Colors.white),
               ),
               const SizedBox(height: 16),
               LinearProgressIndicator(
-                value: _monthlyProgress / 100,
+                value: monthlyProgress / 100,
                 backgroundColor: const Color(0xFF4A4543),
                 valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
               ),
               const SizedBox(height: 16),
               Text(
-                _monthlyProgress >= 75 
-                  ? '¡Excelente trabajo! Sigue así.'
-                  : _monthlyProgress >= 50 
-                    ? '¡Buen progreso! Puedes mejorar.'
-                    : '¡Sigue esforzándote! Tú puedes.',
+                monthlyProgress >= 75
+                    ? '¡Excelente trabajo! Sigue así.'
+                    : monthlyProgress >= 50
+                        ? '¡Buen progreso! Puedes mejorar.'
+                        : '¡Sigue esforzándote! Tú puedes.',
                 style: const TextStyle(color: Color(0xFFBDBDBD)),
               ),
             ],
@@ -321,13 +272,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showAchievementsDialog(BuildContext context) {
+  void _showAchievementsDialog(BuildContext context, int bestStreak) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF3A3634),
         title: const Text(
-          'Logros Desbloqueados',
+          'Logros',
           style: TextStyle(color: Colors.white),
         ),
         content: SizedBox(
@@ -336,16 +287,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildAchievementItem('🌟 Primer Día', 'Completar todos los hábitos durante un día', _stats['achievements'] >= 1),
-                _buildAchievementItem('🔥 Semana Perfecta', 'Mantener racha de 7 días', _stats['achievements'] >= 2),
-                _buildAchievementItem('⭐ Doble Semana', 'Mantener racha de 14 días', _stats['achievements'] >= 3),
-                _buildAchievementItem('🏆 Mes Completo', 'Mantener racha de 30 días', _stats['achievements'] >= 4),
-                _buildAchievementItem('💎 Trimestre Maestro', 'Mantener racha de 90 días', _stats['achievements'] >= 5),
-                _buildAchievementItem('🎯 Semestre Leyenda', 'Mantener racha de 180 días', _stats['achievements'] >= 6),
-                _buildAchievementItem('👑 Año de Éxito', 'Mantener racha de 365 días', _stats['achievements'] >= 7),
-                _buildAchievementItem('⚡ Doble Año', 'Mantener racha de 730 días', _stats['achievements'] >= 8),
-                _buildAchievementItem('🏅 Quinquenio', 'Mantener racha de 5 años', _stats['achievements'] >= 9),
-                _buildAchievementItem('👑🏆 Década Perfecta', 'Mantener racha de 10 años', _stats['achievements'] >= 10),
+                for (final achievement in achievements)
+                  _buildAchievementItem(
+                    achievement.title,
+                    achievement.description,
+                    bestStreak >= achievement.days,
+                  ),
               ],
             ),
           ),
@@ -396,220 +343,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showHistoryDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
-        title: const Text(
-          'Historial de Actividad',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: SizedBox(
-          width: 350,
-          height: 450,
-          child: _buildCalendar(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCalendar() {
-    final now = DateTime.now();
-    final currentYear = now.year;
-    final currentMonth = now.month;
-    final daysInMonth = DateTime(currentYear, currentMonth + 1, 0).day;
-    
-    return FutureBuilder(
-      future: _habitService.getHabits(),
-      builder: (context, snapshot) {
-        return Column(
-          children: [
-            // Header del calendario
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF4A4543),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left, color: Colors.white),
-                    onPressed: () {
-                      // Navegación al mes anterior (implementar después)
-                    },
-                  ),
-                  Text(
-                    '${_getMonthName(currentMonth)} $currentYear',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right, color: Colors.white),
-                    onPressed: () {
-                      // Navegación al mes siguiente (implementar después)
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Días de la semana
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: ['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day) => 
-                    SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: Center(
-                        child: Text(
-                          day,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ).toList(),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            // Calendario
-            Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 7,
-                  childAspectRatio: 1.0,
-                ),
-                itemCount: daysInMonth,
-                itemBuilder: (context, index) {
-                  final day = index + 1;
-                  final dayDate = DateTime(currentYear, currentMonth, day);
-                  final isToday = dayDate.day == now.day && 
-                               dayDate.month == now.month && 
-                               dayDate.year == now.year;
-                  
-                  return FutureBuilder<String>(
-                    future: _getDayStatus(dayDate),
-                    builder: (context, statusSnapshot) {
-                      final dayStatus = statusSnapshot.data ?? 'neutral';
-                      
-                      return Container(
-                        margin: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          color: _getDayColor(dayStatus, isToday),
-                          borderRadius: BorderRadius.circular(8),
-                          border: isToday ? Border.all(color: Colors.blue, width: 2) : null,
-                        ),
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                '$day',
-                                style: TextStyle(
-                                  color: _getDayTextColor(dayStatus, isToday),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _getDayEmoji(dayStatus),
-                                style: const TextStyle(fontSize: 16),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  String _getMonthName(int month) {
-    const months = [
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
-    return months[month - 1];
-  }
-
-  Future<String> _getDayStatus(DateTime dayDate) async {
-    final now = DateTime.now();
-    
-    if (dayDate.isAfter(DateTime(now.year, now.month, now.day))) {
-      return 'future';
-    }
-    
-    if (dayDate.isBefore(DateTime(now.year, now.month, now.day))) {
-      return 'neutral';
-    }
-    
-    return 'today';
-  }
-
-  Color _getDayColor(String status, bool isToday) {
-    switch (status) {
-      case 'good':
-        return Colors.green[700] ?? Colors.green;
-      case 'bad':
-        return Colors.red[700] ?? Colors.red;
-      case 'today':
-        return Colors.blue[700] ?? Colors.blue;
-      default:
-        return const Color(0xFF4A4543);
-    }
-  }
-
-  Color _getDayTextColor(String status, bool isToday) {
-    switch (status) {
-      case 'good':
-      case 'bad':
-      case 'today':
-        return Colors.white;
-      default:
-        return Colors.grey[400] ?? Colors.grey;
-    }
-  }
-
-  String _getDayEmoji(String status) {
-    switch (status) {
-      case 'good':
-        return '😊';
-      case 'bad':
-        return '😔';
-      case 'today':
-        return '📅';
-      default:
-        return '';
-    }
-  }
-
   void _showNotificationTimesDialog(BuildContext context) {
+    final notificationTimes = _notificationTimes;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -629,13 +364,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 style: TextStyle(color: Color(0xFFBDBDBD)),
               ),
               const SizedBox(height: 16),
-              if (_notificationTimes.isEmpty)
+              if (notificationTimes.isEmpty)
                 const Text(
                   'No hay hábitos configurados. Añade hábitos para ver sus horarios aquí.',
                   style: TextStyle(color: Colors.grey),
                 )
               else
-                ..._notificationTimes.map((time) => Padding(
+                ...notificationTimes.map((time) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Row(
                     children: [
@@ -661,7 +396,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () => Navigator.pop(context),
             child: const Text('Cerrar'),
           ),
-          if (_notificationsEnabled && _notificationTimes.isNotEmpty)
+          if (_notificationsEnabled && notificationTimes.isNotEmpty)
             TextButton(
               onPressed: () async {
                 Navigator.pop(context);
@@ -676,10 +411,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _testNotification() async {
     try {
-      final habits = await _habitService.getHabits();
+      final habits = ref.read(habitsProvider).value?.activeHabits ?? const [];
       if (habits.isNotEmpty) {
-        final notificationService = NotificationService();
-        await notificationService.scheduleImmediateNotification(habits.first);
+        await _notificationService.scheduleImmediateNotification(habits.first);
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -709,29 +443,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       }
     }
-  }
-
-  void _showProfileDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
-        title: const Text(
-          'Perfil de Usuario',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: const Text(
-          'Función de perfil próximamente disponible...',
-          style: TextStyle(color: Colors.white),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showPrivacyDialog(BuildContext context) {
@@ -820,7 +531,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildProfileSection() {
-    if (_userProfile == null) {
+    final userProfile = ref.watch(profileProvider).value;
+    if (userProfile == null) {
       return _buildSection(
         'Perfil de Usuario',
         [
@@ -848,19 +560,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           leading: CircleAvatar(
             radius: 20,
             backgroundColor: const Color(0xFF4A4543),
-            backgroundImage: _userProfile?.profileImagePath != null
-                ? FileImage(File(_userProfile!.profileImagePath!))
+            backgroundImage: userProfile.profileImagePath != null
+                ? FileImage(File(userProfile.profileImagePath!))
                 : null,
-            child: _userProfile?.profileImagePath == null
+            child: userProfile.profileImagePath == null
                 ? const Icon(Icons.person, color: Colors.grey)
                 : null,
           ),
           title: Text(
-            _userProfile?.fullName ?? 'Usuario',
+            userProfile.fullName,
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           subtitle: Text(
-            '@${_userProfile?.username ?? ''}',
+            '@${userProfile.username}',
             style: const TextStyle(color: Colors.grey),
           ),
           trailing: const Icon(Icons.edit, color: Colors.blue),
@@ -869,14 +581,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ListTile(
           leading: const Icon(Icons.info_outline, color: Colors.grey),
           title: Text(
-            'Edad: ${_userProfile?.age ?? 'No especificada'}',
+            'Edad: ${userProfile.age}',
             style: const TextStyle(color: Colors.white),
           ),
         ),
         ListTile(
           leading: const Icon(Icons.public, color: Colors.grey),
           title: Text(
-            'País: ${_userProfile?.country ?? 'No especificado'}',
+            'País: ${userProfile.country}',
             style: const TextStyle(color: Colors.white),
           ),
         ),
@@ -889,12 +601,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => ProfileSetupScreen(
-          existingProfile: isEditing ? _userProfile : null,
-          onProfileSaved: (profile) {
-            setState(() {
-              _userProfile = profile;
-            });
-          },
+          existingProfile: isEditing ? ref.read(profileProvider).value : null,
         ),
       ),
     );

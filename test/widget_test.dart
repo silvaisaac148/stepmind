@@ -1,10 +1,11 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:stepmind/main.dart';
 
 void main() {
   testWidgets('Splash muestra la marca y luego navega al login', (tester) async {
-    await tester.pumpWidget(const StepMindApp());
+    await tester.pumpWidget(const ProviderScope(child: StepMindApp()));
 
     expect(find.text('StepMind'), findsOneWidget);
     expect(find.text('Iniciar Sesión'), findsNothing);

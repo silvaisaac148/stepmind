@@ -41,6 +41,10 @@ dependencies:
   path_provider: ^2.1.1
   connectivity_plus: ^7.3.2
   url_launcher: ^6.2.4
+  flutter_riverpod: ^3.3.2
+  sqflite: ^2.4.2+1
+  path: ^1.9.1
+  uuid: ^4.6.0
 
 dev_dependencies:
   flutter_test:
@@ -52,6 +56,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  sqflite_common_ffi: ^2.4.0+3
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -1,314 +1,249 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class CalendarScreen extends StatefulWidget {
+import '../core/dates.dart';
+import '../domain/habit_stats.dart';
+import '../models/calendar_event.dart';
+import '../providers/providers.dart';
+import '../widgets/month_calendar.dart';
+
+class CalendarScreen extends ConsumerStatefulWidget {
   const CalendarScreen({super.key});
 
   @override
-  State<CalendarScreen> createState() => _CalendarScreenState();
+  ConsumerState<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class _CalendarScreenState extends State<CalendarScreen> {
-  DateTime _selectedDate = DateTime.now();
-  DateTime _focusedDate = DateTime.now();
+class _CalendarScreenState extends ConsumerState<CalendarScreen> {
+  late DateTime _selectedDate;
+  late DateTime _focusedMonth;
 
-  final Map<DateTime, List<String>> _events = {
-    DateTime(2026, 1, 11): ['Ejercicio matutino', 'Meditación'],
-    DateTime(2026, 1, 10): ['Leer 30 min', 'Beber agua'],
-    DateTime(2026, 1, 9): ['Ejercicio', 'Tarea completada'],
-    DateTime(2026, 1, 8): ['Meditación', 'Caminar'],
-    DateTime(2026, 1, 7): ['Hábito nuevo iniciado'],
-  };
-
-  List<String> _getEventsForDay(DateTime day) {
-    return _events[DateTime(day.year, day.month, day.day)] ?? [];
+  @override
+  void initState() {
+    super.initState();
+    final today = ref.read(todayProvider);
+    _selectedDate = today;
+    _focusedMonth = DateTime(today.year, today.month);
   }
 
-  void _addEvent() {
-    final controller = TextEditingController();
-    showDialog(
+  Future<void> _addEvent() async {
+    final title = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
-        title: Text(
-          'Agregar Evento - ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Descripción del evento',
-            filled: true,
-            fillColor: Color(0xFF4A4543),
-          ),
-          style: const TextStyle(color: Colors.white),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                setState(() {
-                  final dateKey = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-                  if (_events[dateKey] == null) {
-                    _events[dateKey] = [];
-                  }
-                  _events[dateKey]!.add(controller.text);
-                });
-                Navigator.pop(context);
-              }
-            },
-            child: const Text('Agregar'),
-          ),
-        ],
-      ),
+      builder: (context) => _AddEventDialog(date: _selectedDate),
     );
+    if (title == null || title.trim().isEmpty) return;
+    await ref.read(eventsProvider.notifier).add(_selectedDate, title);
   }
 
   @override
   Widget build(BuildContext context) {
+    final today = ref.watch(todayProvider);
+    final data = ref.watch(habitsProvider).value ?? HabitData.empty;
+    final events = ref.watch(eventsProvider).value ?? const <CalendarEvent>[];
+    final eventDays = events.map((e) => e.day).toSet();
+    final selectedKey = dayKey(_selectedDate);
+    final dayEvents = events.where((e) => e.day == selectedKey).toList();
+    final dayHabits = data.habits.where((h) => h.isActiveOn(_selectedDate)).toList();
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Calendario - ${_focusedDate.month}/${_focusedDate.year}'),
+        title: const Text('Calendario'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
+            tooltip: 'Agregar evento',
             onPressed: _addEvent,
           ),
         ],
       ),
-      body: Column(
+      body: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          _buildCalendarHeader(),
-          _buildCalendarDays(),
-          _buildCalendarGrid(),
-          const SizedBox(height: 16),
-          Expanded(
-            child: Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3A3634),
-                borderRadius: BorderRadius.circular(12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () => setState(() {
+                  _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1);
+                }),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Eventos del ${_selectedDate.day}/${_selectedDate.month}/${_selectedDate.year}',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              Text(
+                '${monthNames[_focusedMonth.month - 1]} ${_focusedMonth.year}',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: Colors.white,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: _getEventsForDay(_selectedDate).isEmpty
-                        ? Center(
-                            child: Text(
-                              'No hay eventos para este día',
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                              ),
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: _getEventsForDay(_selectedDate).length,
-                            itemBuilder: (context, index) {
-                              final event = _getEventsForDay(_selectedDate)[index];
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF4A4543),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.event,
-                                      color: Colors.blue,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Text(
-                                        event,
-                                        style: const TextStyle(color: Colors.white),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-                                      onPressed: () {
-                                        setState(() {
-                                          final dateKey = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-                                          _events[dateKey]?.remove(event);
-                                        });
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                ],
               ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () => setState(() {
+                  _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1);
+                }),
+              ),
+            ],
+          ),
+          MonthCalendar(
+            month: _focusedMonth,
+            today: today,
+            selected: _selectedDate,
+            statusOf: (day) => dayStatus(data, day, today),
+            hasEvents: (day) => eventDays.contains(dayKey(day)),
+            onSelect: (day) => setState(() => _selectedDate = day),
+          ),
+          const SizedBox(height: 8),
+          const _Legend(),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF3A3634),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCalendarHeader() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left),
-            onPressed: () {
-              setState(() {
-                _focusedDate = DateTime(_focusedDate.year, _focusedDate.month - 1);
-              });
-            },
-          ),
-          Text(
-            '${_getMonthName(_focusedDate.month)} ${_focusedDate.year}',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right),
-            onPressed: () {
-              setState(() {
-                _focusedDate = DateTime(_focusedDate.year, _focusedDate.month + 1);
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCalendarDays() {
-    const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: days.map((day) {
-          return Expanded(
-            child: Center(
-              child: Text(
-                day,
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontWeight: FontWeight.bold,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  formatDate(_selectedDate),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
                 ),
-              ),
+                const SizedBox(height: 12),
+                if (dayHabits.isNotEmpty && !_selectedDate.isAfter(today)) ...[
+                  const Text('Hábitos', style: TextStyle(color: Colors.grey)),
+                  for (final habit in dayHabits)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        data.isDone(habit.id, _selectedDate)
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        color: data.isDone(habit.id, _selectedDate)
+                            ? Colors.green
+                            : Colors.grey,
+                      ),
+                      title: Text(habit.name, style: const TextStyle(color: Colors.white)),
+                    ),
+                  const SizedBox(height: 8),
+                ],
+                const Text('Eventos', style: TextStyle(color: Colors.grey)),
+                const SizedBox(height: 8),
+                if (dayEvents.isEmpty)
+                  Text('No hay eventos para este día', style: TextStyle(color: Colors.grey[400]))
+                else
+                  for (final event in dayEvents)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF4A4543),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.event, color: Colors.blue, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(event.title, style: const TextStyle(color: Colors.white)),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                            tooltip: 'Eliminar evento',
+                            onPressed: () => ref.read(eventsProvider.notifier).delete(event.id),
+                          ),
+                        ],
+                      ),
+                    ),
+              ],
             ),
-          );
-        }).toList(),
+          ),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildCalendarGrid() {
-    final daysInMonth = DateTime(_focusedDate.year, _focusedDate.month + 1, 0).day;
-    final firstDayOfWeek = DateTime(_focusedDate.year, _focusedDate.month, 1).weekday % 7;
+class _Legend extends StatelessWidget {
+  const _Legend();
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 7,
-          childAspectRatio: 1,
-        ),
-        itemCount: daysInMonth + firstDayOfWeek,
-        itemBuilder: (context, index) {
-          if (index < firstDayOfWeek) {
-            return const SizedBox();
-          }
-
-          final day = index - firstDayOfWeek + 1;
-          final currentDate = DateTime(_focusedDate.year, _focusedDate.month, day);
-          final isSelected = _selectedDate.year == currentDate.year &&
-                           _selectedDate.month == currentDate.month &&
-                           _selectedDate.day == currentDate.day;
-          final hasEvents = _getEventsForDay(currentDate).isNotEmpty;
-
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedDate = currentDate;
-              });
-            },
-            child: Container(
-              margin: const EdgeInsets.all(2),
+  @override
+  Widget build(BuildContext context) {
+    Widget item(DayStatus status, String label) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 12,
+              height: 12,
               decoration: BoxDecoration(
-                color: isSelected
-                    ? const Color(0xFF4A4543)
-                    : hasEvents
-                        ? const Color(0xFF3A3634)
-                        : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isSelected ? Colors.white : Colors.transparent,
-                ),
-              ),
-              child: Stack(
-                children: [
-                  Center(
-                    child: Text(
-                      '$day',
-                      style: TextStyle(
-                        color: isSelected
-                            ? Colors.white
-                            : hasEvents
-                                ? Colors.blue
-                                : Colors.grey[300],
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                  if (hasEvents)
-                    Positioned(
-                      bottom: 2,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Container(
-                          width: 4,
-                          height: 4,
-                          decoration: const BoxDecoration(
-                            color: Colors.blue,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+                color: MonthCalendar.statusColor(status),
+                borderRadius: BorderRadius.circular(3),
               ),
             ),
-          );
-        },
-      ),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+          ],
+        );
+
+    return Wrap(
+      spacing: 16,
+      runSpacing: 4,
+      children: [
+        item(DayStatus.perfect, 'Todos'),
+        item(DayStatus.partial, 'Algunos'),
+        item(DayStatus.missed, 'Ninguno'),
+      ],
     );
   }
+}
 
-  String _getMonthName(int month) {
-    const months = [
-      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
-    return months[month - 1];
+class _AddEventDialog extends StatefulWidget {
+  final DateTime date;
+
+  const _AddEventDialog({required this.date});
+
+  @override
+  State<_AddEventDialog> createState() => _AddEventDialogState();
+}
+
+class _AddEventDialogState extends State<_AddEventDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF3A3634),
+      title: Text(
+        'Agregar Evento - ${formatDate(widget.date)}',
+        style: const TextStyle(color: Colors.white),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 100,
+        decoration: const InputDecoration(
+          labelText: 'Descripción del evento',
+          filled: true,
+          fillColor: Color(0xFF4A4543),
+        ),
+        style: const TextStyle(color: Colors.white),
+        onSubmitted: (value) => Navigator.pop(context, value),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, _controller.text),
+          child: const Text('Agregar'),
+        ),
+      ],
+    );
   }
 }

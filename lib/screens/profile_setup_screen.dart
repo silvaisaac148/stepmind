@@ -1,24 +1,23 @@
-import 'package:flutter/material.dart';
 import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../models/user_profile.dart';
+import '../providers/providers.dart';
 import '../services/user_profile_service.dart';
 
-class ProfileSetupScreen extends StatefulWidget {
+class ProfileSetupScreen extends ConsumerStatefulWidget {
   final UserProfile? existingProfile;
-  final Function(UserProfile) onProfileSaved;
 
-  const ProfileSetupScreen({
-    super.key,
-    this.existingProfile,
-    required this.onProfileSaved,
-  });
+  const ProfileSetupScreen({super.key, this.existingProfile});
 
   @override
-  State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
+  ConsumerState<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
 }
 
-class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
+class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _userProfileService = UserProfileService();
   
@@ -171,15 +170,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         profileImagePath: savedImagePath,
       );
 
-      await _userProfileService.saveProfile(profile);
-      
+      await ref.read(profileProvider.notifier).save(profile);
+
       if (mounted) {
-        widget.onProfileSaved(profile);
-        Navigator.pop(context);
         _showSuccessSnackBar('Perfil guardado exitosamente');
+        Navigator.pop(context);
       }
     } catch (e) {
-      _showErrorSnackBar('Error al guardar perfil: $e');
+      if (mounted) _showErrorSnackBar('Error al guardar perfil: $e');
     } finally {
       if (mounted) {
         setState(() {

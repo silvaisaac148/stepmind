@@ -1,167 +1,170 @@
 import 'package:flutter/material.dart';
-import '../services/stats_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class StatsScreen extends StatefulWidget {
+import '../core/dates.dart';
+import '../domain/habit_stats.dart';
+import '../providers/providers.dart';
+
+class StatsScreen extends ConsumerWidget {
   const StatsScreen({super.key});
 
   @override
-  State<StatsScreen> createState() => _StatsScreenState();
-}
-
-class _StatsScreenState extends State<StatsScreen> {
-  final StatsService _statsService = StatsService();
-  Map<String, dynamic> _stats = {
-    'habits': 0, 
-    'days': 0, 
-    'achievements': 0,
-    'dailyProgress': 0.0,
-    'currentStreak': 0,
-  };
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadStats();
-  }
-
-  Future<void> _loadStats() async {
-    final stats = await _statsService.getStats();
-    setState(() {
-      _stats = stats;
-      _isLoading = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
-      );
-    }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(statsProvider);
+    final data = ref.watch(habitsProvider).value ?? HabitData.empty;
+    final today = ref.watch(todayProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Estadísticas y Progresos'),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      appBar: AppBar(title: const Text('Estadísticas y Progresos')),
+      body: statsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
+        error: (e, _) => Center(
+          child: Text('No se pudieron calcular las estadísticas: $e',
+              style: const TextStyle(color: Colors.white)),
+        ),
+        data: (stats) => ListView(
+          padding: const EdgeInsets.all(16.0),
           children: [
             Text(
               'Tu Progreso',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 20),
-            Expanded(
-              child: ListView(
-                children: [
-                  _buildProgressCard(
-                    context,
-                    'Hábitos Completados',
-                    '${_stats['dailyProgress'].toStringAsFixed(0)}%',
-                    'Has completado ${_stats['habits'] > 0 ? ((_stats['dailyProgress'] / 100 * _stats['habits']).round()).toString() : '0'} de ${_stats['habits'].toString()} hábitos hoy',
-                    Icons.trending_up,
-                    Colors.green,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildProgressCard(
-                    context,
-                    'Racha Actual',
-                    '${_stats['currentStreak']} días',
-                    _stats['currentStreak'] > 0 
-                        ? '¡Sigue así! Tu mejor racha es de ${_stats['currentStreak']} días' 
-                        : 'Completa todos tus hábitos para empezar una racha',
-                    Icons.local_fire_department,
-                    Colors.orange,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildProgressCard(
-                    context,
-                    'Logros Desbloqueados',
-                    '${_stats['achievements']}',
-                    _stats['achievements'] > 0 
-                        ? '¡Sigue así! Sigue desbloqueando más logros' 
-                        : 'Completa hábitos para desbloquear logros',
-                    Icons.emoji_events,
-                    Colors.purple,
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF3A3634),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Actividad Reciente',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        if (_stats['habits'] == 0) ...[
-                          _buildEmptyActivityItem('No hay actividad reciente'),
-                          _buildEmptyActivityItem('Agrega tu primer hábito para comenzar'),
-                        ] else ...[
-                          _buildEmptyActivityItem('Completa tus hábitos para ver actividad'),
-                          _buildEmptyActivityItem('Tu actividad aparecerá aquí'),
-                        ],
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            _ProgressCard(
+              title: 'Hábitos Completados',
+              value: '${(stats.dailyProgress * 100).round()}%',
+              description:
+                  'Has completado ${stats.completedToday} de ${stats.activeHabits} hábitos hoy',
+              icon: Icons.trending_up,
+              color: Colors.green,
             ),
+            const SizedBox(height: 16),
+            _ProgressCard(
+              title: 'Racha Actual',
+              value: '${stats.currentStreak} días',
+              description: stats.bestStreak > 0
+                  ? 'Tu mejor racha es de ${stats.bestStreak} días'
+                  : 'Completa todos tus hábitos para empezar una racha',
+              icon: Icons.local_fire_department,
+              color: Colors.orange,
+            ),
+            const SizedBox(height: 16),
+            _ProgressCard(
+              title: 'Logros Desbloqueados',
+              value: '${stats.unlockedAchievements}/${achievements.length}',
+              description: stats.unlockedAchievements > 0
+                  ? '¡Sigue así! Sigue desbloqueando más logros'
+                  : 'Completa hábitos para desbloquear logros',
+              icon: Icons.emoji_events,
+              color: Colors.purple,
+            ),
+            const SizedBox(height: 16),
+            _RecentActivity(data: data, today: today),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildEmptyActivityItem(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
+class _RecentActivity extends StatelessWidget {
+  final HabitData data;
+  final DateTime today;
+
+  const _RecentActivity({required this.data, required this.today});
+
+  static const _weekdays = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+  @override
+  Widget build(BuildContext context) {
+    final days = [for (var i = 6; i >= 0; i--) addDays(today, -i)];
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF3A3634),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            Icons.info_outline,
-            color: Colors.grey[400],
-            size: 20,
+          Text(
+            'Últimos 7 días',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.white),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 14,
-              ),
+          const SizedBox(height: 16),
+          if (data.habits.isEmpty)
+            Text(
+              'Agrega tu primer hábito para comenzar',
+              style: TextStyle(color: Colors.grey[400], fontSize: 14),
+            )
+          else
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (final day in days)
+                  Column(
+                    children: [
+                      Text(
+                        _weekdays[day.weekday - 1],
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      ),
+                      const SizedBox(height: 6),
+                      _DayDot(ratio: completionRatio(data, day)),
+                    ],
+                  ),
+              ],
             ),
-          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildProgressCard(
-    BuildContext context,
-    String title,
-    String value,
-    String description,
-    IconData icon,
-    Color color,
-  ) {
+class _DayDot extends StatelessWidget {
+  final double? ratio;
+
+  const _DayDot({required this.ratio});
+
+  @override
+  Widget build(BuildContext context) {
+    final r = ratio;
+    final color = r == null
+        ? const Color(0xFF4A4543)
+        : Color.lerp(Colors.red[700], Colors.green[600], r)!;
+    return Container(
+      width: 32,
+      height: 32,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Text(
+        r == null ? '–' : '${(r * 100).round()}',
+        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+class _ProgressCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final String description;
+  final IconData icon;
+  final Color color;
+
+  const _ProgressCard({
+    required this.title,
+    required this.value,
+    required this.description,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -185,27 +188,19 @@ class _StatsScreenState extends State<StatsScreen> {
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(
-                    color: Colors.grey[400],
-                    fontSize: 14,
-                  ),
-                ),
+                Text(description, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
               ],
             ),
           ),
           Text(
             value,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.bold,
-            ),
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
         ],
       ),

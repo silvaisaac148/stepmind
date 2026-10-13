@@ -1,149 +1,80 @@
 import 'package:flutter/material.dart';
-import '../models/habit.dart';
-import '../services/habit_service.dart';
-import '../services/stats_service.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class HabitsScreen extends StatefulWidget {
+import '../domain/habit_stats.dart';
+import '../models/habit.dart';
+import '../providers/providers.dart';
+
+class HabitsScreen extends ConsumerWidget {
   const HabitsScreen({super.key});
 
-  @override
-  State<HabitsScreen> createState() => _HabitsScreenState();
-}
-
-class _HabitsScreenState extends State<HabitsScreen> {
-  final HabitService _habitService = HabitService();
-  final StatsService _statsService = StatsService();
-  List<Habit> _habits = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadHabits();
-  }
-
-  Future<void> _loadHabits() async {
-    final habits = await _habitService.getHabits();
-    setState(() {
-      _habits = habits;
-      _isLoading = false;
-    });
-  }
-
-  Future<void> _toggleHabitCompletion(Habit habit) async {
-    await _habitService.toggleHabitCompletion(habit.id);
-    
-    // Cargar hábitos actualizados ANTES de verificar
-    final updatedHabits = await _habitService.getHabits();
-    
-    // Verificar si todos están completados con los datos actualizados
-    final allCompleted = updatedHabits.isNotEmpty && 
-        updatedHabits.every((h) => h.isCompletedToday);
-    
-    if (allCompleted) {
-      await _statsService.updateDailyStats();
+  Future<void> _run(BuildContext context, Future<void> Function() action) async {
+    try {
+      await action();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Algo salió mal: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
-    
-    // Actualizar UI
-    setState(() {
-      _habits = updatedHabits;
-    });
   }
 
-  Future<void> _deleteHabit(String habitId) async {
-    await _habitService.deleteHabit(habitId);
-    await _loadHabits();
-  }
-
-  void _addHabit() {
-    final nameController = TextEditingController();
-    TimeOfDay selectedTime = TimeOfDay.now();
-    
-    showDialog(
+  Future<void> _addHabit(BuildContext context, WidgetRef ref) async {
+    final result = await showDialog<_HabitFormResult>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          backgroundColor: const Color(0xFF3A3634),
-          title: const Text(
-            'Nuevo Hábito',
-            style: TextStyle(color: Colors.white),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nombre del hábito',
-                  filled: true,
-                  fillColor: Color(0xFF4A4543),
-                ),
-                style: const TextStyle(color: Colors.white),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                title: const Text(
-                  'Hora del recordatorio',
-                  style: TextStyle(color: Colors.white),
-                ),
-                subtitle: Text(
-                  '${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}',
-                  style: const TextStyle(color: Colors.grey),
-                ),
-                trailing: const Icon(Icons.access_time, color: Colors.white),
-                onTap: () async {
-                  final time = await showTimePicker(
-                    context: context,
-                    initialTime: selectedTime,
-                  );
-                  if (time != null) {
-                    setState(() {
-                      selectedTime = time;
-                    });
-                  }
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (nameController.text.isNotEmpty) {
-                  final newHabit = Habit(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    name: nameController.text,
-                    time: selectedTime,
-                    createdAt: DateTime.now(),
-                    completedDates: [],
-                  );
-                  await _habitService.addHabit(newHabit);
-                  await _loadHabits(); // Recargar hábitos después de agregar
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                  }
-                }
-              },
-              child: const Text('Agregar'),
-            ),
-          ],
-        ),
-      ),
+      builder: (context) => const _HabitFormDialog(),
+    );
+    if (result == null || !context.mounted) return;
+    await _run(context, () => ref.read(habitsProvider.notifier).addHabit(result.name, result.time));
+  }
+
+  Future<void> _editHabit(BuildContext context, WidgetRef ref, Habit habit) async {
+    final result = await showDialog<_HabitFormResult>(
+      context: context,
+      builder: (context) => _HabitFormDialog(initial: habit),
+    );
+    if (result == null || !context.mounted) return;
+    await _run(
+      context,
+      () => ref
+          .read(habitsProvider.notifier)
+          .updateHabit(habit.copyWith(name: result.name, time: result.time)),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.white),
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref, Habit habit) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF3A3634),
+        title: const Text('Eliminar Hábito', style: TextStyle(color: Colors.white)),
+        content: Text(
+          '¿Estás seguro de que quieres eliminar "${habit.name}"? '
+          'Tu historial anterior se conservará en las estadísticas.',
+          style: const TextStyle(color: Colors.white),
         ),
-      );
-    }
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await _run(context, () => ref.read(habitsProvider.notifier).archiveHabit(habit.id));
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final habitsAsync = ref.watch(habitsProvider);
+    final today = ref.watch(todayProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -151,222 +82,303 @@ class _HabitsScreenState extends State<HabitsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: _addHabit,
+            tooltip: 'Nuevo hábito',
+            onPressed: () => _addHabit(context, ref),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF3A3634),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _buildSummaryCard('Total', '${_habits.length}'),
-                  _buildSummaryCard('Completados', '${_habits.where((h) => h.isCompletedToday).length}'),
-                  _buildSummaryCard('Mejor Racha', '${_getBestStreak()} días'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Mis Hábitos',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: _habits.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.task_alt,
-                            size: 64,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No tienes hábitos registrados',
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 18,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Presiona el botón + para agregar tu primer hábito',
-                            style: TextStyle(
-                              color: Colors.grey[500],
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+      body: habitsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator(color: Colors.white)),
+        error: (e, _) => Center(
+          child: Text('No se pudieron cargar los hábitos: $e',
+              style: const TextStyle(color: Colors.white)),
+        ),
+        data: (data) {
+          final habits = data.activeHabits;
+          final completed = habits.where((h) => data.isDone(h.id, today)).length;
+          final bestStreak = habits.isEmpty
+              ? 0
+              : habits
+                  .map((h) => habitBestStreak(data.daysFor(h.id)))
+                  .reduce((a, b) => a > b ? a : b);
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF3A3634),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _SummaryCard(title: 'Total', value: '${habits.length}'),
+                      _SummaryCard(title: 'Completados', value: '$completed'),
+                      _SummaryCard(title: 'Mejor Racha', value: '$bestStreak días'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Mis Hábitos',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                       ),
-                    )
-                  : ListView.builder(
-                      itemCount: _habits.length,
-                      itemBuilder: (context, index) {
-                        final habit = _habits[index];
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF3A3634),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: habit.isCompletedToday ? Colors.green : Colors.transparent,
-                              width: 2,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Checkbox(
-                                value: habit.isCompletedToday,
-                                onChanged: (value) => _toggleHabitCompletion(habit),
-                                activeColor: Colors.green,
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: habits.isEmpty
+                      ? const _EmptyHabits()
+                      : ListView.builder(
+                          itemCount: habits.length,
+                          itemBuilder: (context, index) {
+                            final habit = habits[index];
+                            return _HabitTile(
+                              habit: habit,
+                              done: data.isDone(habit.id, today),
+                              streak: habitStreak(data.daysFor(habit.id), today),
+                              onToggle: () => _run(
+                                context,
+                                () => ref.read(habitsProvider.notifier).toggleToday(habit.id),
                               ),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      habit.name,
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w500,
-                                        decoration: habit.isCompletedToday
-                                            ? TextDecoration.lineThrough
-                                            : TextDecoration.none,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.access_time,
-                                          color: Colors.blue,
-                                          size: 16,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          habit.formattedTime,
-                                          style: TextStyle(
-                                            color: Colors.grey[400],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Icon(
-                                          Icons.local_fire_department,
-                                          color: Colors.orange,
-                                          size: 16,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'Racha: ${habit.currentStreak} días',
-                                          style: TextStyle(
-                                            color: Colors.grey[400],
-                                            fontSize: 12,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuButton<String>(
-                                icon: Icon(
-                                  Icons.more_vert,
-                                  color: Colors.grey[400],
-                                ),
-                                onSelected: (value) {
-                                  if (value == 'delete') {
-                                    _showDeleteConfirmation(habit);
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    child: Text('Eliminar'),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                              onEdit: () => _editHabit(context, ref, habit),
+                              onDelete: () => _confirmDelete(context, ref, habit),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
+}
 
-  int _getBestStreak() {
-    if (_habits.isEmpty) return 0;
-    return _habits.map((habit) => habit.currentStreak).reduce((a, b) => a > b ? a : b);
-  }
+class _HabitTile extends StatelessWidget {
+  final Habit habit;
+  final bool done;
+  final int streak;
+  final VoidCallback onToggle;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
-  void _showDeleteConfirmation(Habit habit) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF3A3634),
-        title: const Text(
-          'Eliminar Hábito',
-          style: TextStyle(color: Colors.white),
+  const _HabitTile({
+    required this.habit,
+    required this.done,
+    required this.streak,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF3A3634),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: done ? Colors.green : Colors.transparent,
+          width: 2,
         ),
-        content: Text(
-          '¿Estás seguro de que quieres eliminar "${habit.name}"?',
-          style: const TextStyle(color: Colors.white),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+      ),
+      child: Row(
+        children: [
+          Checkbox(
+            value: done,
+            onChanged: (_) => onToggle(),
+            activeColor: Colors.green,
           ),
-          ElevatedButton(
-            onPressed: () {
-              _deleteHabit(habit.id);
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Eliminar'),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  habit.name,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500,
+                    decoration: done ? TextDecoration.lineThrough : TextDecoration.none,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.access_time, color: Colors.blue, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      habit.formattedTime,
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    ),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Racha: $streak ${streak == 1 ? 'día' : 'días'}',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: Colors.grey[400]),
+            onSelected: (value) => value == 'edit' ? onEdit() : onDelete(),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'edit', child: Text('Editar')),
+              PopupMenuItem(value: 'delete', child: Text('Eliminar')),
+            ],
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildSummaryCard(String title, String value) {
+class _EmptyHabits extends StatelessWidget {
+  const _EmptyHabits();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.task_alt, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            'No tienes hábitos registrados',
+            style: TextStyle(color: Colors.grey[400], fontSize: 18),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Presiona el botón + para agregar tu primer hábito',
+            style: TextStyle(color: Colors.grey[500], fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  final String title;
+  final String value;
+
+  const _SummaryCard({required this.title, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       children: [
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-          ),
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
         ),
-        Text(
-          title,
-          style: TextStyle(
-            color: Colors.grey[400],
-            fontSize: 12,
+        Text(title, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+      ],
+    );
+  }
+}
+
+class _HabitFormResult {
+  final String name;
+  final TimeOfDay time;
+
+  const _HabitFormResult(this.name, this.time);
+}
+
+/// Diálogo para crear o editar un hábito.
+class _HabitFormDialog extends StatefulWidget {
+  final Habit? initial;
+
+  const _HabitFormDialog({this.initial});
+
+  @override
+  State<_HabitFormDialog> createState() => _HabitFormDialogState();
+}
+
+class _HabitFormDialogState extends State<_HabitFormDialog> {
+  late final TextEditingController _nameController;
+  late TimeOfDay _time;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initial?.name ?? '');
+    _time = widget.initial?.time ?? TimeOfDay.now();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+    Navigator.pop(context, _HabitFormResult(name, _time));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isEditing = widget.initial != null;
+    return AlertDialog(
+      backgroundColor: const Color(0xFF3A3634),
+      title: Text(
+        isEditing ? 'Editar Hábito' : 'Nuevo Hábito',
+        style: const TextStyle(color: Colors.white),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _nameController,
+            autofocus: !isEditing,
+            maxLength: 60,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Nombre del hábito',
+              filled: true,
+              fillColor: Color(0xFF4A4543),
+            ),
+            style: const TextStyle(color: Colors.white),
+            onSubmitted: (_) => _submit(),
           ),
+          const SizedBox(height: 16),
+          ListTile(
+            title: const Text('Hora del recordatorio', style: TextStyle(color: Colors.white)),
+            subtitle: Text(
+              '${_time.hour.toString().padLeft(2, '0')}:${_time.minute.toString().padLeft(2, '0')}',
+              style: const TextStyle(color: Colors.grey),
+            ),
+            trailing: const Icon(Icons.access_time, color: Colors.white),
+            onTap: () async {
+              final time = await showTimePicker(context: context, initialTime: _time);
+              if (time != null) setState(() => _time = time);
+            },
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          child: Text(isEditing ? 'Guardar' : 'Agregar'),
         ),
       ],
     );
