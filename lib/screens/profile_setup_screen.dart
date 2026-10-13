@@ -198,7 +198,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.petrol500,
       ),
     );
   }
@@ -207,7 +207,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red,
+        backgroundColor: AppColors.coral,
       ),
     );
   }
@@ -312,7 +312,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: AppColors.orange,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(25),
                     ),
@@ -371,11 +371,11 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF4CAF50)),
+          borderSide: const BorderSide(color: AppColors.orange),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Colors.red),
+          borderSide: const BorderSide(color: AppColors.coral),
         ),
         prefixIcon: Icon(icon, color: AppColors.textMuted),
       ),

@@ -364,7 +364,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo cerrar sesión. $e'), backgroundColor: Colors.red),
+        SnackBar(content: Text('No se pudo cerrar sesión. $e'), backgroundColor: AppColors.coral),
       );
     }
   }
@@ -415,7 +415,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               LinearProgressIndicator(
                 value: monthlyProgress / 100,
                 backgroundColor: AppColors.surfaceHigh,
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.orange),
               ),
               const SizedBox(height: 16),
               Text(
@@ -645,7 +645,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Notificación de prueba enviada'),
-              backgroundColor: Colors.green,
+              backgroundColor: AppColors.petrol500,
             ),
           );
         }
@@ -664,7 +664,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.coral,
           ),
         );
       }

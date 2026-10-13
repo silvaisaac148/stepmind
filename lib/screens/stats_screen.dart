@@ -40,7 +40,7 @@ class StatsScreen extends ConsumerWidget {
               description:
                   'Has completado ${stats.completedToday} de ${stats.activeHabits} hábitos hoy',
               icon: Icons.trending_up,
-              color: Colors.green,
+              color: AppColors.orange,
             ),
             const SizedBox(height: 16),
             _ProgressCard(
@@ -50,7 +50,7 @@ class StatsScreen extends ConsumerWidget {
                   ? 'Tu mejor racha es de ${stats.bestStreak} días'
                   : 'Completa todos tus hábitos para empezar una racha',
               icon: Icons.local_fire_department,
-              color: Colors.orange,
+              color: AppColors.yellow,
             ),
             const SizedBox(height: 16),
             _ProgressCard(
@@ -60,7 +60,7 @@ class StatsScreen extends ConsumerWidget {
                   ? '¡Sigue así! Sigue desbloqueando más logros'
                   : 'Completa hábitos para desbloquear logros',
               icon: Icons.emoji_events,
-              color: Colors.purple,
+              color: AppColors.teal,
             ),
             const SizedBox(height: 16),
             _RecentActivity(data: data, today: today),
@@ -135,7 +135,7 @@ class _DayDot extends StatelessWidget {
     final r = ratio;
     final color = r == null
         ? AppColors.surfaceHigh
-        : Color.lerp(Colors.red[700], Colors.green[600], r)!;
+        : Color.lerp(AppColors.orangeDeep, AppColors.orange, r)!;
     return Container(
       width: 32,
       height: 32,

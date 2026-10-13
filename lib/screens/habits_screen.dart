@@ -16,7 +16,7 @@ class HabitsScreen extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Algo salió mal: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Algo salió mal: $e'), backgroundColor: AppColors.coral),
         );
       }
     }
@@ -48,7 +48,7 @@ class HabitsScreen extends ConsumerWidget {
           'Sin permiso de notificaciones no recibirás recordatorios. '
           'Puedes activarlo en los ajustes del sistema.',
         ),
-        backgroundColor: Colors.orange,
+        backgroundColor: AppColors.orangeDeep,
       ),
     );
   }
@@ -116,7 +116,7 @@ class HabitsScreen extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral),
             child: const Text('Eliminar'),
           ),
         ],
@@ -242,7 +242,7 @@ class _HabitTile extends StatelessWidget {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: done ? Colors.green : Colors.transparent,
+          color: done ? AppColors.orange : Colors.transparent,
           width: 2,
         ),
       ),
@@ -251,7 +251,7 @@ class _HabitTile extends StatelessWidget {
           Checkbox(
             value: done,
             onChanged: (_) => onToggle(),
-            activeColor: Colors.green,
+            activeColor: AppColors.orange,
           ),
           Expanded(
             child: Column(
@@ -268,14 +268,14 @@ class _HabitTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.access_time, color: Colors.blue, size: 16),
+                    const Icon(Icons.access_time, color: AppColors.textSecondary, size: 16),
                     const SizedBox(width: 4),
                     Text(
                       habit.formattedTime,
                       style: TextStyle(color: AppColors.textMuted, fontSize: 12),
                     ),
                     const SizedBox(width: 12),
-                    const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                    const Icon(Icons.local_fire_department, color: AppColors.orange, size: 16),
                     const SizedBox(width: 4),
                     Text(
                       'Racha: $streak ${streak == 1 ? 'día' : 'días'}',
