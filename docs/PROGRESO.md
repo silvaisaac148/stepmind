@@ -1,5 +1,8 @@
 # Progreso de StepMind
 
+> Tareas pendientes (usuario y Claude): `docs/TAREAS.md` · Casos de prueba: `docs/PRUEBAS.md` ·
+> Estudio: `docs/ESTUDIO.md` · Plantilla de competencia: `docs/PLANTILLA_COMPETENCIA.md`
+
 ## Plan por fases
 
 | Fase | Estado | Commit |
