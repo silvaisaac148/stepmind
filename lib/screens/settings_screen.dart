@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../models/habit.dart';
 import '../models/user_profile.dart';
 import '../services/habit_service.dart';
 import '../services/notification_service.dart';
@@ -473,7 +472,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: ['D', 'L', 'M', 'M', 'J', 'V', 'S'].map((day) => 
-                    Container(
+                    SizedBox(
                       width: 40,
                       height: 40,
                       child: Center(

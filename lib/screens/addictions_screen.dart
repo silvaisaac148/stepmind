@@ -124,13 +124,10 @@ class AddictionsScreen extends StatelessWidget {
   }
 
   Widget _buildResourcesCard(BuildContext context) {
-    print('🔨 Construyendo ResourcesCard...');
     return FutureBuilder(
       future: _checkInternetConnection(),
       builder: (context, snapshot) {
-        print('🔨 FutureBuilder completado: ${snapshot.data}');
-        final hasInternet = snapshot.data ?? false;
-        print('🔨 ¿Tiene internet? $hasInternet');
+        final hasInternet = snapshot.data ?? true;
         
         return Container(
           padding: const EdgeInsets.all(16),
@@ -161,12 +158,8 @@ class AddictionsScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              // Siempre mostrar el botón para depuración
               ElevatedButton.icon(
-                onPressed: () {
-                  print('🔗 Botón presionado!');
-                  _launchURL();
-                },
+                onPressed: _launchURL,
                 icon: const Icon(Icons.open_in_browser),
                 label: Text(hasInternet ? 'Obtener Más Recursos' : 'Obtener Más Recursos (Sin Internet)'),
                 style: ElevatedButton.styleFrom(
@@ -178,7 +171,7 @@ class AddictionsScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    'Verificando conexión...',
+                    'Necesitas conexión a internet para ver los recursos.',
                     style: TextStyle(color: Colors.grey.shade300),
                   ),
                 ),
@@ -190,43 +183,24 @@ class AddictionsScreen extends StatelessWidget {
   }
 
   Future<bool> _checkInternetConnection() async {
-    print('🌐 Verificando conexión a internet...');
     try {
       final result = await Connectivity().checkConnectivity();
-      print('🌐 Resultado de conectividad: $result');
       final hasConnection = result.contains(ConnectivityResult.wifi) || 
                            result.contains(ConnectivityResult.mobile) ||
                            result.contains(ConnectivityResult.ethernet);
-      print('🌐 ¿Tiene conexión? $hasConnection');
       return hasConnection;
     } catch (e) {
-      print('❌ Error verificando conexión: $e');
       return false;
     }
   }
 
   Future<void> _launchURL() async {
-    print('🔗 Intentando lanzar URL...');
     final url = Uri.parse('https://www.adictalia.es/noticias/tipos-adicciones/');
-    print('🔗 URL: $url');
     
     try {
-      print('🔗 Verificando si se puede lanzar URL...');
-      final canLaunch = await canLaunchUrl(url);
-      print('🔗 ¿Se puede lanzar? $canLaunch');
-      
-      if (canLaunch) {
-        print('🔗 Lanzando URL con modo externo...');
-        await launchUrl(
-          url,
-          mode: LaunchMode.externalApplication,
-        );
-        print('🔗 URL lanzada exitosamente');
-      } else {
-        print('❌ No se pudo lanzar la URL: $url');
-      }
+      await launchUrl(url, mode: LaunchMode.externalApplication);
     } catch (e) {
-      print('❌ Error al lanzar URL: $e');
+      debugPrint('No se pudo abrir $url: $e');
     }
   }
 }

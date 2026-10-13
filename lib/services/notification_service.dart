@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/habit.dart';
 
@@ -43,7 +42,7 @@ class NotificationService {
         );
 
     await _flutterLocalNotificationsPlugin.initialize(
-      initializationSettings,
+      settings: initializationSettings,
       onDidReceiveNotificationResponse: _onNotificationTapped,
     );
 
@@ -60,11 +59,6 @@ class NotificationService {
           .resolvePlatformSpecificImplementation<
               AndroidFlutterLocalNotificationsPlugin>()
           ?.requestNotificationsPermission();
-    }
-
-    // Permisos adicionales para Android 13+
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      await Permission.notification.request();
     }
   }
 
@@ -125,14 +119,12 @@ class NotificationService {
       );
 
       await _flutterLocalNotificationsPlugin.zonedSchedule(
-        habit.id.hashCode,
-        '🎯 Recordatorio de StepMind',
-        'Es hora de completar tu hábito: ${habit.name}',
-        scheduledTime,
-        platformChannelSpecifics,
+        id: habit.id.hashCode,
+        title: '🎯 Recordatorio de StepMind',
+        body: 'Es hora de completar tu hábito: ${habit.name}',
+        scheduledDate: scheduledTime,
+        notificationDetails: platformChannelSpecifics,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
         payload: 'habit_${habit.id}',
       );
@@ -201,14 +193,12 @@ class NotificationService {
       final scheduledTime = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 5));
 
       await _flutterLocalNotificationsPlugin.zonedSchedule(
-        habit.id.hashCode,
-        '🎯 Recordatorio de StepMind',
-        'Es hora de completar tu hábito: ${habit.name}',
-        scheduledTime,
-        platformChannelSpecifics,
+        id: habit.id.hashCode,
+        title: '🎯 Recordatorio de StepMind',
+        body: 'Es hora de completar tu hábito: ${habit.name}',
+        scheduledDate: scheduledTime,
+        notificationDetails: platformChannelSpecifics,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
         payload: 'habit_${habit.id}',
       );
 
@@ -219,7 +209,7 @@ class NotificationService {
   }
 
   Future<void> cancelHabitNotification(String habitId) async {
-    await _flutterLocalNotificationsPlugin.cancel(habitId.hashCode);
+    await _flutterLocalNotificationsPlugin.cancel(id: habitId.hashCode);
     debugPrint('Notificación cancelada para hábito: $habitId');
   }
 
@@ -254,10 +244,10 @@ class NotificationService {
     );
 
     await _flutterLocalNotificationsPlugin.show(
-      DateTime.now().millisecondsSinceEpoch.remainder(100000),
-      '🧪 Notificación de Prueba',
-      'StepMind está funcionando correctamente',
-      platformChannelSpecifics,
+      id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+      title: '🧪 Notificación de Prueba',
+      body: 'StepMind está funcionando correctamente',
+      notificationDetails: platformChannelSpecifics,
       payload: 'test_notification',
     );
   }
@@ -286,40 +276,4 @@ class NotificationService {
       await cancelAllNotifications();
     }
   }
-
-  Future<void> requestNotificationPermission() async {
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      final androidPlugin = _flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
-      
-      final granted = await androidPlugin?.requestNotificationsPermission();
-      debugPrint('Permiso de notificación concedido: $granted');
-    }
-  }
-
-  // Método para verificar el estado de los permisos
-  Future<NotificationPermissionStatus> getPermissionStatus() async {
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      final status = await Permission.notification.status;
-      switch (status) {
-        case PermissionStatus.granted:
-          return NotificationPermissionStatus.granted;
-        case PermissionStatus.denied:
-          return NotificationPermissionStatus.denied;
-        case PermissionStatus.permanentlyDenied:
-          return NotificationPermissionStatus.permanentlyDenied;
-        default:
-          return NotificationPermissionStatus.unknown;
-      }
-    }
-    return NotificationPermissionStatus.granted; // iOS maneja permisos diferente
-  }
-}
-
-enum NotificationPermissionStatus {
-  granted,
-  denied,
-  permanentlyDenied,
-  unknown,
 }
