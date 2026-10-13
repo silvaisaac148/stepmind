@@ -41,13 +41,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _setNotificationsEnabled(bool value) async {
-    await _notificationService.setNotificationsEnabled(value);
-    if (value) {
-      final habits = ref.read(habitsProvider).value?.activeHabits ?? const [];
-      await ref.read(reminderSchedulerProvider).reschedule(habits);
+    if (value && !await _notificationService.requestPermission()) {
+      _showPermissionDeniedSnackBar();
+      return;
     }
+    await _notificationService.setNotificationsEnabled(value);
+    if (value) await ref.read(habitsProvider.notifier).syncReminders();
     if (!mounted) return;
     setState(() => _notificationsEnabled = value);
+  }
+
+  void _showPermissionDeniedSnackBar() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Permiso de notificaciones denegado. Actívalo en los ajustes del sistema.',
+        ),
+        backgroundColor: Colors.orange,
+      ),
+    );
   }
 
   @override
@@ -413,12 +426,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     try {
       final habits = ref.read(habitsProvider).value?.activeHabits ?? const [];
       if (habits.isNotEmpty) {
-        await _notificationService.scheduleImmediateNotification(habits.first);
-        
+        if (!await _notificationService.requestPermission()) {
+          _showPermissionDeniedSnackBar();
+          return;
+        }
+        await _notificationService.showTestNotification(habits.first.name);
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Notificación de prueba enviada para ${habits.first.name}'),
+              content: Text('Notificación de prueba enviada'),
               backgroundColor: Colors.green,
             ),
           );

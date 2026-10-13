@@ -39,13 +39,14 @@ final clockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
 /// Programa los recordatorios de los hábitos activos.
 abstract class ReminderScheduler {
-  Future<void> reschedule(List<Habit> activeHabits);
+  /// [completedToday]: ids de hábitos ya hechos hoy (no deben sonar hoy).
+  Future<void> reschedule(List<Habit> activeHabits, {Set<String> completedToday = const {}});
 }
 
 class NotificationReminderScheduler implements ReminderScheduler {
   @override
-  Future<void> reschedule(List<Habit> activeHabits) =>
-      NotificationService().scheduleHabitNotifications(activeHabits);
+  Future<void> reschedule(List<Habit> activeHabits, {Set<String> completedToday = const {}}) =>
+      NotificationService().syncHabitReminders(activeHabits, completedToday: completedToday);
 }
 
 final reminderSchedulerProvider = Provider<ReminderScheduler>(
@@ -106,10 +107,17 @@ class HabitsController extends AsyncNotifier<HabitData> {
     state = AsyncData(change(current));
   }
 
-  Future<void> _syncReminders() async {
+  /// Reprograma los recordatorios según el estado actual (también se llama al
+  /// abrir la app y al volver a ella).
+  Future<void> syncReminders() async {
     final data = await future;
+    final today = ref.read(todayProvider);
+    final active = data.activeHabits;
     try {
-      await ref.read(reminderSchedulerProvider).reschedule(data.activeHabits);
+      await ref.read(reminderSchedulerProvider).reschedule(
+            active,
+            completedToday: {for (final h in active) if (data.isDone(h.id, today)) h.id},
+          );
     } catch (e) {
       debugPrint('No se pudieron reprogramar los recordatorios: $e');
     }
@@ -124,7 +132,7 @@ class HabitsController extends AsyncNotifier<HabitData> {
         );
         await _repo.saveHabit(habit);
         await _apply((d) => d.copyWith(habits: [...d.habits, habit]));
-        await _syncReminders();
+        await syncReminders();
       });
 
   Future<void> updateHabit(Habit habit) => _serial(() async {
@@ -132,7 +140,7 @@ class HabitsController extends AsyncNotifier<HabitData> {
         await _apply((d) => d.copyWith(
               habits: [for (final h in d.habits) h.id == habit.id ? habit : h],
             ));
-        await _syncReminders();
+        await syncReminders();
       });
 
   /// Elimina el hábito de la lista conservando su historial.
@@ -144,7 +152,7 @@ class HabitsController extends AsyncNotifier<HabitData> {
         await _apply((d) => d.copyWith(
               habits: [for (final h in d.habits) h.id == habitId ? archived : h],
             ));
-        await _syncReminders();
+        await syncReminders();
       });
 
   Future<void> toggleToday(String habitId) => _serial(() async {
@@ -159,6 +167,7 @@ class HabitsController extends AsyncNotifier<HabitData> {
           done ? days.add(day) : days.remove(day);
           return d.copyWith(checkins: {...d.checkins, habitId: days});
         });
+        await syncReminders();
       });
 }
 

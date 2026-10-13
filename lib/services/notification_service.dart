@@ -1,10 +1,13 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;
-import 'package:timezone/data/latest.dart' as tz;
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
+
 import '../models/habit.dart';
 
 class NotificationService {
@@ -12,268 +15,169 @@ class NotificationService {
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
-      FlutterLocalNotificationsPlugin();
+  static const _enabledKey = 'notifications_enabled';
+
+  /// Id reservado para la notificación de prueba (los hábitos nunca usan 0).
+  static const _testNotificationId = 0;
+
+  static const _androidDetails = AndroidNotificationDetails(
+    'habit_reminders',
+    'Recordatorios de Hábitos',
+    channelDescription: 'Notificaciones para recordar tus hábitos diarios',
+    importance: Importance.high,
+    priority: Priority.high,
+    color: Color(0xFF282524),
+    icon: 'ic_notification',
+  );
+
+  static const _details = NotificationDetails(
+    android: _androidDetails,
+    iOS: DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    ),
+  );
+
+  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+
+  /// Se pone en `true` cuando el usuario abre la app tocando un recordatorio,
+  /// para que la pantalla de inicio muestre la lista de hábitos.
+  final ValueNotifier<bool> openHabitsRequested = ValueNotifier(false);
 
   bool _isInitialized = false;
 
+  /// Configura zona horaria y plugin. No pide permisos: eso se hace cuando el
+  /// usuario crea un hábito o activa las notificaciones.
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    // Inicializar timezone
     tz.initializeTimeZones();
+    try {
+      final timezone = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(timezone.identifier));
+    } catch (e) {
+      debugPrint('No se pudo obtener la zona horaria, se usa UTC: $e');
+    }
 
-    // Configuración para Android
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    // Configuración para iOS
-    const DarwinInitializationSettings initializationSettingsIOS =
-        DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-        );
-
-    const InitializationSettings initializationSettings =
-        InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
-        );
-
-    await _flutterLocalNotificationsPlugin.initialize(
-      settings: initializationSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
+    const settings = InitializationSettings(
+      android: AndroidInitializationSettings('ic_notification'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+    );
+    await _plugin.initialize(
+      settings: settings,
+      onDidReceiveNotificationResponse: (_) => openHabitsRequested.value = true,
     );
 
-    // Solicitar permisos
-    await _requestPermissions();
+    final launch = await _plugin.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp ?? false) {
+      openHabitsRequested.value = true;
+    }
 
     _isInitialized = true;
   }
 
-  Future<void> _requestPermissions() async {
-    // Permisos para Android
+  /// Pide permiso para mostrar notificaciones. Devuelve si quedó concedido.
+  Future<bool> requestPermission() async {
+    await initialize();
     if (defaultTargetPlatform == TargetPlatform.android) {
-      await _flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestNotificationsPermission();
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      return await android?.requestNotificationsPermission() ?? false;
     }
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final ios = _plugin
+          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+      return await ios?.requestPermissions(alert: true, badge: true, sound: true) ?? false;
+    }
+    return true;
   }
 
-  void _onNotificationTapped(NotificationResponse response) {
-    // Manejar el toque en la notificación
-    debugPrint('Notificación tocada: ${response.payload}');
+  /// Id de notificación estable para un hábito (FNV-1a de 31 bits, nunca 0).
+  static int notificationIdFor(String habitId) {
+    var hash = 0x811c9dc5;
+    for (final unit in habitId.codeUnits) {
+      hash ^= unit;
+      hash = (hash * 0x01000193) & 0xffffffff;
+    }
+    final id = hash & 0x7fffffff;
+    return id == _testNotificationId ? 1 : id;
   }
 
-  Future<void> scheduleHabitNotifications(List<Habit> habits) async {
+  /// Próximo momento del recordatorio diario. Si [skipToday] (hábito ya hecho
+  /// hoy) o la hora ya pasó, empieza mañana.
+  static tz.TZDateTime nextReminderTime(
+    TimeOfDay time,
+    tz.TZDateTime now, {
+    bool skipToday = false,
+  }) {
+    final today = tz.TZDateTime(now.location, now.year, now.month, now.day, time.hour, time.minute);
+    if (!skipToday && today.isAfter(now)) return today;
+    return tz.TZDateTime(now.location, now.year, now.month, now.day + 1, time.hour, time.minute);
+  }
+
+  /// Reprograma los recordatorios diarios de [habits]. Los que ya están
+  /// completados hoy ([completedToday]) empiezan a sonar mañana.
+  Future<void> syncHabitReminders(
+    List<Habit> habits, {
+    Set<String> completedToday = const {},
+  }) async {
     await initialize();
+    await _plugin.cancelAllPendingNotifications();
 
-    // Cancelar todas las notificaciones existentes
-    await _flutterLocalNotificationsPlugin.cancelAll();
+    if (!await areNotificationsEnabled()) return;
 
-    // Programar notificaciones para cada hábito
+    final now = tz.TZDateTime.now(tz.local);
     for (final habit in habits) {
-      await _scheduleHabitNotification(habit);
-    }
-
-    // Guardar estado de notificaciones activas
-    await _saveNotificationStatus(habits);
-  }
-
-  Future<void> _scheduleHabitNotification(Habit habit) async {
-    try {
-      final now = tz.TZDateTime.now(tz.local);
-      final scheduledTime = _getNextScheduledTime(habit.time, now);
-
-      final AndroidNotificationDetails androidPlatformChannelSpecifics =
-          AndroidNotificationDetails(
-        'habit_reminders',
-        'Recordatorios de Hábitos',
-        channelDescription: 'Notificaciones para recordar tus hábitos diarios',
-        importance: Importance.high,
-        priority: Priority.high,
-        color: const Color(0xFF282524),
-        icon: '@mipmap/ic_launcher',
-        largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
-        styleInformation: BigTextStyleInformation(
-          'Es hora de completar tu hábito: ${habit.name}',
-          htmlFormatBigText: true,
-          contentTitle: '🎯 Recordatorio de StepMind',
-          htmlFormatContentTitle: true,
-        ),
-      );
-
-      const DarwinNotificationDetails iOSPlatformChannelSpecifics =
-          DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-        sound: 'default',
-      );
-
-      final NotificationDetails platformChannelSpecifics = NotificationDetails(
-        android: androidPlatformChannelSpecifics,
-        iOS: iOSPlatformChannelSpecifics,
-      );
-
-      await _flutterLocalNotificationsPlugin.zonedSchedule(
-        id: habit.id.hashCode,
-        title: '🎯 Recordatorio de StepMind',
-        body: 'Es hora de completar tu hábito: ${habit.name}',
-        scheduledDate: scheduledTime,
-        notificationDetails: platformChannelSpecifics,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        matchDateTimeComponents: DateTimeComponents.time,
-        payload: 'habit_${habit.id}',
-      );
-
-      debugPrint('Notificación programada para ${habit.name} a las ${habit.formattedTime} el ${scheduledTime.day}/${scheduledTime.month}');
-    } catch (e) {
-      debugPrint('Error al programar notificación para ${habit.name}: $e');
+      final id = notificationIdFor(habit.id);
+      final done = completedToday.contains(habit.id);
+      // Quita de la bandeja el recordatorio de un hábito ya completado.
+      if (done) await _plugin.cancel(id: id);
+      try {
+        await _plugin.zonedSchedule(
+          id: id,
+          title: '🎯 Recordatorio de StepMind',
+          body: 'Es hora de completar tu hábito: ${habit.name}',
+          scheduledDate: nextReminderTime(habit.time, now, skipToday: done),
+          notificationDetails: _details,
+          // Inexacto: no requiere el permiso de alarmas exactas (restringido
+          // en Play Store). Android puede retrasarlo unos minutos.
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          matchDateTimeComponents: DateTimeComponents.time,
+          payload: 'habit_${habit.id}',
+        );
+      } catch (e) {
+        debugPrint('Error al programar notificación para ${habit.name}: $e');
+      }
     }
   }
 
-  tz.TZDateTime _getNextScheduledTime(TimeOfDay time, tz.TZDateTime now) {
-    final scheduled = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      time.hour,
-      time.minute,
-    );
-
-    // Si la hora ya pasó hoy, programar para mañana
-    if (scheduled.isBefore(now)) {
-      return scheduled.add(const Duration(days: 1));
-    }
-
-    return scheduled;
-  }
-
-  // Método para programar notificación inmediata (para pruebas)
-  Future<void> scheduleImmediateNotification(Habit habit) async {
-    try {
-      await initialize();
-
-      final AndroidNotificationDetails androidPlatformChannelSpecifics =
-          AndroidNotificationDetails(
-        'habit_reminders',
-        'Recordatorios de Hábitos',
-        channelDescription: 'Notificaciones para recordar tus hábitos diarios',
-        importance: Importance.high,
-        priority: Priority.high,
-        color: const Color(0xFF282524),
-        icon: '@mipmap/ic_launcher',
-        largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
-        styleInformation: BigTextStyleInformation(
-          'Es hora de completar tu hábito: ${habit.name}',
-          htmlFormatBigText: true,
-          contentTitle: '🎯 Recordatorio de StepMind',
-          htmlFormatContentTitle: true,
-        ),
-      );
-
-      const DarwinNotificationDetails iOSPlatformChannelSpecifics =
-          DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-        sound: 'default',
-      );
-
-      final NotificationDetails platformChannelSpecifics = NotificationDetails(
-        android: androidPlatformChannelSpecifics,
-        iOS: iOSPlatformChannelSpecifics,
-      );
-
-      // Programar para 5 segundos después
-      final scheduledTime = tz.TZDateTime.now(tz.local).add(const Duration(seconds: 5));
-
-      await _flutterLocalNotificationsPlugin.zonedSchedule(
-        id: habit.id.hashCode,
-        title: '🎯 Recordatorio de StepMind',
-        body: 'Es hora de completar tu hábito: ${habit.name}',
-        scheduledDate: scheduledTime,
-        notificationDetails: platformChannelSpecifics,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        payload: 'habit_${habit.id}',
-      );
-
-      debugPrint('Notificación inmediata programada para ${habit.name}');
-    } catch (e) {
-      debugPrint('Error al programar notificación inmediata para ${habit.name}: $e');
-    }
-  }
-
-  Future<void> cancelHabitNotification(String habitId) async {
-    await _flutterLocalNotificationsPlugin.cancel(id: habitId.hashCode);
-    debugPrint('Notificación cancelada para hábito: $habitId');
-  }
-
-  Future<void> cancelAllNotifications() async {
-    await _flutterLocalNotificationsPlugin.cancelAll();
-    debugPrint('Todas las notificaciones canceladas');
-  }
-
-  Future<void> showTestNotification() async {
+  Future<void> showTestNotification(String habitName) async {
     await initialize();
-
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'test_channel',
-      'Canal de Prueba',
-      channelDescription: 'Notificaciones de prueba',
-      importance: Importance.high,
-      priority: Priority.high,
-      color: Color(0xFF282524),
-    );
-
-    const DarwinNotificationDetails iOSPlatformChannelSpecifics =
-        DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
-
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iOSPlatformChannelSpecifics,
-    );
-
-    await _flutterLocalNotificationsPlugin.show(
-      id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
-      title: '🧪 Notificación de Prueba',
-      body: 'StepMind está funcionando correctamente',
-      notificationDetails: platformChannelSpecifics,
+    await _plugin.show(
+      id: _testNotificationId,
+      title: '🧪 Notificación de prueba',
+      body: 'Así se verá el recordatorio de: $habitName',
+      notificationDetails: _details,
       payload: 'test_notification',
     );
   }
 
-  Future<List<String>> getActiveNotificationTimes() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList('active_notification_times') ?? [];
-  }
-
-  Future<void> _saveNotificationStatus(List<Habit> habits) async {
-    final prefs = await SharedPreferences.getInstance();
-    final times = habits.map((habit) => habit.formattedTime).toSet().toList();
-    await prefs.setStringList('active_notification_times', times);
-  }
-
   Future<bool> areNotificationsEnabled() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('notifications_enabled') ?? true;
+    return prefs.getBool(_enabledKey) ?? true;
   }
 
   Future<void> setNotificationsEnabled(bool enabled) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('notifications_enabled', enabled);
-
+    await prefs.setBool(_enabledKey, enabled);
     if (!enabled) {
-      await cancelAllNotifications();
+      await initialize();
+      await _plugin.cancelAllPendingNotifications();
     }
   }
 }

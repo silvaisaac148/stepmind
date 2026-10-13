@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
+import '../services/notification_service.dart';
 import 'addictions_screen.dart';
 import 'calendar_screen.dart';
 import 'habits_screen.dart';
@@ -18,30 +19,40 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  static const _habitsTab = 2;
+
+  final _notifications = NotificationService();
   int _currentIndex = 0;
   late final AppLifecycleListener _lifecycle;
 
   @override
   void initState() {
     super.initState();
-    // Al volver a la app puede haber cambiado el día.
+    // Al volver a la app puede haber cambiado el día: los recordatorios de
+    // hoy deben volver a sonar para los hábitos aún pendientes.
     _lifecycle = AppLifecycleListener(
-      onResume: () => ref.read(todayProvider.notifier).refresh(),
+      onResume: () {
+        ref.read(todayProvider.notifier).refresh();
+        ref.read(habitsProvider.notifier).syncReminders();
+      },
     );
-    _rescheduleReminders();
+    ref.read(habitsProvider.notifier).syncReminders();
+
+    _notifications.openHabitsRequested.addListener(_openHabitsFromNotification);
+    // Si la app se abrió tocando un recordatorio.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _openHabitsFromNotification());
   }
 
-  Future<void> _rescheduleReminders() async {
-    try {
-      final data = await ref.read(habitsProvider.future);
-      await ref.read(reminderSchedulerProvider).reschedule(data.activeHabits);
-    } catch (e) {
-      debugPrint('Error inicializando notificaciones: $e');
-    }
+  void _openHabitsFromNotification() {
+    if (!mounted || !_notifications.openHabitsRequested.value) return;
+    _notifications.openHabitsRequested.value = false;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    setState(() => _currentIndex = _habitsTab);
   }
 
   @override
   void dispose() {
+    _notifications.openHabitsRequested.removeListener(_openHabitsFromNotification);
     _lifecycle.dispose();
     super.dispose();
   }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../domain/habit_stats.dart';
 import '../models/habit.dart';
 import '../providers/providers.dart';
+import '../services/notification_service.dart';
 
 class HabitsScreen extends ConsumerWidget {
   const HabitsScreen({super.key});
@@ -27,6 +28,24 @@ class HabitsScreen extends ConsumerWidget {
     );
     if (result == null || !context.mounted) return;
     await _run(context, () => ref.read(habitsProvider.notifier).addHabit(result.name, result.time));
+    if (context.mounted) await _ensureNotificationPermission(context);
+  }
+
+  /// Pide el permiso de notificaciones al crear un hábito (momento en que el
+  /// usuario entiende para qué sirve), solo si tiene los recordatorios activos.
+  Future<void> _ensureNotificationPermission(BuildContext context) async {
+    final notifications = NotificationService();
+    if (!await notifications.areNotificationsEnabled()) return;
+    if (await notifications.requestPermission() || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Sin permiso de notificaciones no recibirás recordatorios. '
+          'Puedes activarlo en los ajustes del sistema.',
+        ),
+        backgroundColor: Colors.orange,
+      ),
+    );
   }
 
   Future<void> _editHabit(BuildContext context, WidgetRef ref, Habit habit) async {

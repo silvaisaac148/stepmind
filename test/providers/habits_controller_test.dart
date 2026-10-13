@@ -30,9 +30,13 @@ class InMemoryHabitRepository implements HabitRepository {
 
 class FakeScheduler implements ReminderScheduler {
   final calls = <List<Habit>>[];
+  final completedCalls = <Set<String>>[];
 
   @override
-  Future<void> reschedule(List<Habit> activeHabits) async => calls.add(activeHabits);
+  Future<void> reschedule(List<Habit> activeHabits, {Set<String> completedToday = const {}}) async {
+    calls.add(activeHabits);
+    completedCalls.add(completedToday);
+  }
 }
 
 void main() {
@@ -77,6 +81,18 @@ void main() {
     await controller().toggleToday(id);
     expect(container.read(habitsProvider).requireValue.daysFor(id), isEmpty);
     expect(repo.checkins[id], isEmpty);
+  });
+
+  test('marcar hoy reprograma: el hábito hecho no suena hoy', () async {
+    await container.read(habitsProvider.future);
+    await controller().addHabit('Agua', const TimeOfDay(hour: 8, minute: 0));
+    final id = container.read(habitsProvider).requireValue.habits.single.id;
+
+    await controller().toggleToday(id);
+    expect(scheduler.completedCalls.last, {id});
+
+    await controller().toggleToday(id);
+    expect(scheduler.completedCalls.last, isEmpty);
   });
 
   test('toques rápidos no se pisan entre sí', () async {

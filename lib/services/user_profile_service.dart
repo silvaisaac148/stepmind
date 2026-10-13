@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../models/user_profile.dart';
 
@@ -31,31 +31,14 @@ class UserProfileService {
     debugPrint('Perfil guardado exitosamente');
   }
 
-  Future<String?> pickAndSaveProfileImage() async {
-    try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? image = await picker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 512,
-        maxHeight: 512,
-        imageQuality: 85,
-      );
-
-      if (image == null) return null;
-
-      // Guardar imagen localmente
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final savedImage = File('${directory.path}/$fileName');
-      
-      await savedImage.writeAsBytes(await image.readAsBytes());
-      
-      debugPrint('Imagen de perfil guardada: ${savedImage.path}');
-      return savedImage.path;
-    } catch (e) {
-      debugPrint('Error al guardar imagen de perfil: $e');
-      return null;
-    }
+  /// Copia la imagen elegida (que el sistema guarda en caché temporal) a la
+  /// carpeta de documentos de la app, para que no desaparezca.
+  Future<String> persistProfileImage(String sourcePath) async {
+    final directory = await getApplicationDocumentsDirectory();
+    final extension = p.extension(sourcePath).isEmpty ? '.jpg' : p.extension(sourcePath);
+    final fileName = 'profile_${DateTime.now().millisecondsSinceEpoch}$extension';
+    final saved = await File(sourcePath).copy(p.join(directory.path, fileName));
+    return saved.path;
   }
 
   Future<void> deleteProfileImage(String imagePath) async {

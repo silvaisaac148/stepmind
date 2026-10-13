@@ -158,8 +158,11 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     });
 
     try {
-      // Solo usar la imagen seleccionada, no pedir nueva
-      final savedImagePath = _profileImagePath;
+      final previousImagePath = widget.existingProfile?.profileImagePath;
+      var savedImagePath = _profileImagePath;
+      if (savedImagePath != null && savedImagePath != previousImagePath) {
+        savedImagePath = await _userProfileService.persistProfileImage(savedImagePath);
+      }
 
       final profile = UserProfile(
         firstName: _firstNameController.text.trim(),
@@ -171,6 +174,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       );
 
       await ref.read(profileProvider.notifier).save(profile);
+      if (previousImagePath != null && previousImagePath != savedImagePath) {
+        await _userProfileService.deleteProfileImage(previousImagePath);
+      }
 
       if (mounted) {
         _showSuccessSnackBar('Perfil guardado exitosamente');
