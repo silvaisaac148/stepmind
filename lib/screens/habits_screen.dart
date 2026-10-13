@@ -36,7 +36,11 @@ class HabitsScreen extends ConsumerWidget {
   Future<void> _ensureNotificationPermission(BuildContext context) async {
     final notifications = NotificationService();
     if (!await notifications.areNotificationsEnabled()) return;
-    if (await notifications.requestPermission() || !context.mounted) return;
+    if (await notifications.requestPermission()) {
+      if (context.mounted) await _offerExactReminders(context, notifications);
+      return;
+    }
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
@@ -48,7 +52,40 @@ class HabitsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _editHabit(BuildContext context, WidgetRef ref, Habit habit) async {
+  Future<void> _offerExactReminders(
+    BuildContext context,
+    NotificationService notifications,
+  ) async {
+    if (!await notifications.takeExactRemindersOffer() || !context.mounted) return;
+    final accept = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF3A3634),
+        title: const Text(
+          'Recordatorios a la hora exacta',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'Sin este permiso Android puede retrasar los recordatorios hasta una hora. '
+          'En la siguiente pantalla activa "Permitir alarmas y recordatorios" para StepMind.',
+          style: TextStyle(color: Color(0xFFBDBDBD)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ahora no'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Activar'),
+          ),
+        ],
+      ),
+    );
+    if (accept ?? false) await notifications.requestExactReminders();
+  }
+
+    Future<void> _editHabit(BuildContext context, WidgetRef ref, Habit habit) async {
     final result = await showDialog<_HabitFormResult>(
       context: context,
       builder: (context) => _HabitFormDialog(initial: habit),

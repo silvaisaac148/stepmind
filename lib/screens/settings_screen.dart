@@ -21,6 +21,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   bool _notificationsEnabled = true;
 
+  /// Permiso de alarmas exactas (solo Android; `null` mientras se consulta).
+  bool? _exactRemindersAllowed;
+
+  /// Al volver de los ajustes del sistema el permiso puede haber cambiado.
+  late final AppLifecycleListener _lifecycle;
+
   List<String> get _notificationTimes =>
       (ref.read(habitsProvider).value?.activeHabits ?? const [])
           .map((habit) => habit.formattedTime)
@@ -31,13 +37,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _loadNotificationSettings);
     _loadNotificationSettings();
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
   }
 
   Future<void> _loadNotificationSettings() async {
     final enabled = await _notificationService.areNotificationsEnabled();
+    final exact = Platform.isAndroid
+        ? await _notificationService.canScheduleExactReminders()
+        : null;
     if (!mounted) return;
-    setState(() => _notificationsEnabled = enabled);
+    setState(() {
+      _notificationsEnabled = enabled;
+      _exactRemindersAllowed = exact;
+    });
   }
 
   Future<void> _setNotificationsEnabled(bool value) async {
@@ -158,6 +177,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
                 onTap: () => _showNotificationTimesDialog(context),
               ),
+              if (_notificationsEnabled && _exactRemindersAllowed != null)
+                ListTile(
+                  leading: Icon(
+                    Icons.schedule,
+                    color: _exactRemindersAllowed! ? Colors.green : Colors.orange,
+                  ),
+                  title: const Text(
+                    'Recordatorios a la hora exacta',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    _exactRemindersAllowed!
+                        ? 'Activado'
+                        : 'Desactivado: pueden llegar con hasta 1 h de retraso. Toca para activarlo.',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
+                  trailing: _exactRemindersAllowed!
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                  onTap: _exactRemindersAllowed!
+                      ? null
+                      : _notificationService.requestExactReminders,
+                ),
+              if (Platform.isAndroid)
+                ListTile(
+                  leading: const Icon(Icons.help_outline, color: Colors.amber),
+                  title: const Text(
+                    '¿No te llegan los recordatorios?',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  subtitle: const Text(
+                    'Ajustes de batería según tu teléfono',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
+                  onTap: () => _showReminderHelpDialog(context),
+                ),
             ],
           ),
           const SizedBox(height: 20),
@@ -417,6 +473,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               },
               child: const Text('Probar Notificación'),
             ),
+        ],
+      ),
+    );
+  }
+
+  void _showReminderHelpDialog(BuildContext context) {
+    const tips = [
+      ('Todos', 'Ajustes → Aplicaciones → StepMind → Notificaciones: actívalas.'),
+      ('Todos', 'Ajustes → Aplicaciones → StepMind → Batería: elige "Sin restricciones".'),
+      ('Honor / Huawei', 'Ajustes → Batería → Inicio de aplicaciones → StepMind: '
+          'desactiva "Gestionar automáticamente" y permite ejecutar en segundo plano.'),
+      ('Xiaomi / Redmi / POCO', 'Ajustes → Aplicaciones → StepMind: activa "Inicio automático" '
+          'y en Ahorro de batería elige "Sin restricciones".'),
+      ('Samsung', 'Ajustes → Batería → Límites de uso en segundo plano: '
+          'quita StepMind de "Aplicaciones en suspensión".'),
+      ('Oppo / Realme / OnePlus', 'Ajustes → Batería → StepMind: '
+          'permite actividad en segundo plano e inicio automático.'),
+    ];
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF3A3634),
+        title: const Text(
+          '¿No te llegan los recordatorios?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Algunos teléfonos cierran las apps en segundo plano para ahorrar '
+                'batería y eso bloquea los recordatorios. Revisa estos ajustes:',
+                style: TextStyle(color: Color(0xFFBDBDBD)),
+              ),
+              for (final (brand, tip) in tips) ...[
+                const SizedBox(height: 12),
+                Text(
+                  brand,
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 2),
+                Text(tip, style: const TextStyle(color: Colors.grey)),
+              ],
+              const SizedBox(height: 12),
+              const Text(
+                'Los nombres de los menús pueden variar según la versión del sistema.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Entendido'),
+          ),
         ],
       ),
     );

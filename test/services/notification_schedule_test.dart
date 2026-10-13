@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:stepmind/services/notification_service.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -71,6 +72,19 @@ void main() {
         for (var i = 0; i < 1000; i++) NotificationService.notificationIdFor('habit-$i'),
       };
       expect(ids.length, 1000);
+    });
+  });
+
+  group('scheduleModeFor', () {
+    test('exacto solo si el permiso está concedido', () {
+      expect(
+        NotificationService.scheduleModeFor(exactAllowed: true),
+        AndroidScheduleMode.exactAllowWhileIdle,
+      );
+      expect(
+        NotificationService.scheduleModeFor(exactAllowed: false),
+        AndroidScheduleMode.inexactAllowWhileIdle,
+      );
     });
   });
 }

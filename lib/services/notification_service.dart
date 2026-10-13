@@ -16,6 +16,7 @@ class NotificationService {
   NotificationService._internal();
 
   static const _enabledKey = 'notifications_enabled';
+  static const _exactOfferedKey = 'exact_reminders_offered';
 
   /// Id reservado para la notificación de prueba (los hábitos nunca usan 0).
   static const _testNotificationId = 0;
@@ -84,10 +85,9 @@ class NotificationService {
   /// Pide permiso para mostrar notificaciones. Devuelve si quedó concedido.
   Future<bool> requestPermission() async {
     await initialize();
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      final android = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
-      return await android?.requestNotificationsPermission() ?? false;
+    final android = _android;
+    if (android != null) {
+      return await android.requestNotificationsPermission() ?? false;
     }
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       final ios = _plugin
@@ -96,6 +96,42 @@ class NotificationService {
     }
     return true;
   }
+
+  AndroidFlutterLocalNotificationsPlugin? get _android =>
+      defaultTargetPlatform == TargetPlatform.android
+          ? _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          : null;
+
+  /// Si se pueden programar alarmas exactas. Fuera de Android siempre `true`.
+  Future<bool> canScheduleExactReminders() async {
+    await initialize();
+    final android = _android;
+    if (android == null) return true;
+    return await android.canScheduleExactNotifications() ?? false;
+  }
+
+  /// Abre el ajuste del sistema "Alarmas y recordatorios". El resultado real
+  /// se ve al volver a la app (se reprograma en `onResume`).
+  Future<void> requestExactReminders() async {
+    await initialize();
+    await _android?.requestExactAlarmsPermission();
+  }
+
+  /// `true` una sola vez si conviene ofrecer las alarmas exactas (Android y
+  /// sin conceder). Después se gestiona desde Ajustes.
+  Future<bool> takeExactRemindersOffer() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_exactOfferedKey) ?? false) return false;
+    if (await canScheduleExactReminders()) return false;
+    await prefs.setBool(_exactOfferedKey, true);
+    return true;
+  }
+
+  /// Exacto si está concedido; si no, inexacto (Android puede retrasarlo
+  /// hasta ~1 h en versiones recientes).
+  static AndroidScheduleMode scheduleModeFor({required bool exactAllowed}) => exactAllowed
+      ? AndroidScheduleMode.exactAllowWhileIdle
+      : AndroidScheduleMode.inexactAllowWhileIdle;
 
   /// Id de notificación estable para un hábito (FNV-1a de 31 bits, nunca 0).
   static int notificationIdFor(String habitId) {
@@ -131,6 +167,7 @@ class NotificationService {
 
     if (!await areNotificationsEnabled()) return;
 
+    final mode = scheduleModeFor(exactAllowed: await canScheduleExactReminders());
     final now = tz.TZDateTime.now(tz.local);
     for (final habit in habits) {
       final id = notificationIdFor(habit.id);
@@ -144,9 +181,7 @@ class NotificationService {
           body: 'Es hora de completar tu hábito: ${habit.name}',
           scheduledDate: nextReminderTime(habit.time, now, skipToday: done),
           notificationDetails: _details,
-          // Inexacto: no requiere el permiso de alarmas exactas (restringido
-          // en Play Store). Android puede retrasarlo unos minutos.
-          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          androidScheduleMode: mode,
           matchDateTimeComponents: DateTimeComponents.time,
           payload: 'habit_${habit.id}',
         );
